@@ -64,6 +64,8 @@ def tokens2cost(tokens: dict, model_name: str) -> dict:
         "meta-llama/Llama-4-Scout-17B-16E-Instruct" : {"in": 0.18, "out": 0.59},
         "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" : {"in": 0.27, "out": 0.85},
 
+        # Groq models
+        "meta-llama/llama-4-scout-17b-16e-instruct": {"in": 0.11, "out": 0.34},
     }
 
     catalog["llama-3.3-70b-specdec"] = catalog["meta-llama/Llama-3.3-70B-Instruct-Turbo"]

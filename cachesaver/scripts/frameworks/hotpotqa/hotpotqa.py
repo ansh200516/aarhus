@@ -82,14 +82,14 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             raise ValueError(f"Config for 'reflexion_wrapper.num_trials' not found for method '{method_name}'")
     
         method = AlgorithmReflexionWrapper(
-        model=api,
-        agents=wrapper_agents_config,
-        env=EnvironmentHotpotQA,
-        inner_solver_class=inner_solver_class,
-        inner_solver_agents_instances=inner_solver_agents_dict, # Pass the prepared agent dict
-        inner_solver_main_config=inner_solver_main_config,
-        num_trials=config.reflexion_wrapper.num_trials
-    )
+            model=api,
+            agents=wrapper_agents_config,
+            env=EnvironmentHotpotQA,
+            inner_solver_class=inner_solver_class,
+            inner_solver_agents_instances=inner_solver_agents_dict, # Pass the prepared agent dict
+            inner_solver_main_config=inner_solver_main_config,
+            num_trials=config.reflexion_wrapper.num_trials
+        )
     elif method_name == "foa":
         agents = AgentDictFOA(step=AgentActHotpotQA, evaluate=AgentEvaluateHotpotQA, step_params=params, eval_params=params)
         method = AlgorithmFOA(model=api, agents=agents, env=EnvironmentHotpotQA, **OmegaConf.to_container(config.foa, resolve=True))
@@ -130,7 +130,7 @@ async def run(args, trial, cache_path):
     
 
     if args.provider == 'groq':
-        model_layer = GroqAPILLM(use_multiple_keys=False)
+        model_layer = OnlineLLM(client=client, max_n=1)
     else:
         model_layer = OnlineLLM(client=client)
     

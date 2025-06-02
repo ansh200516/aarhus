@@ -229,6 +229,7 @@ class AgentReactHotpotQA(Agent):
         react_actions = [r.strip() for r in responses]
         return react_actions
 
+
 class AgentReflectHotpotQA(Agent):
     """
     Agent performing the Reflection operation for the HotpotQA task.
@@ -267,8 +268,7 @@ class AgentReflectHotpotQA(Agent):
 
         reflection_text = responses[0].strip()
         return reflection_text
-        
-        
+
         
 class AgentSelfEvaluateHotpotQA(Agent):
     """

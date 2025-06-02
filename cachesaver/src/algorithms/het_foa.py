@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 class AgentDict(TypedDict):
     agent: Agent
     params: DecodingParameters
-    model: Optional[Model]  
+    model: Optional[Model]
     num_agents: int
 
 class AgentDictHeterogenousFOA(TypedDict):
@@ -51,7 +51,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
 
     def _get_ith_agent_dict(self, i) -> AgentDict:
         """Get the i-th agent in the fleet and its parameters."""
-        if i >= len(self.step_agents) or i < 0:
+        if i >= self.num_agents or i < 0:
             raise IndexError(f"Agent index {i} out of range.")
 
         agent_dict_index = -1
@@ -83,7 +83,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
             # Generate actions for each state
             action_coroutines = [
                 self._get_ith_agent_dict(i)['agent'].act(
-                    model=self._get_ith_agent_dict(i)['model'] or self.model,
+                    model=self._get_ith_agent_dict(i).get('model') or self.model,
                     state=state,
                     n=1,
                     namespace=namespace,

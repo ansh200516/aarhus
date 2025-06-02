@@ -7,8 +7,10 @@ from . import prompts as prompts
 from .state import StateGame24
 from ...typedefs import Request, Agent, Model, DecodingParameters
 
-act_cache = {}
+from .environment import EnvironmentGame24
 
+act_cache = {}
+env = EnvironmentGame24
 
 class AgentActGame24(Agent):
     """ """
@@ -365,6 +367,48 @@ class AgentSelfEvaluateGame24(Agent):
             cache[state.current_state] = value
 
         return value
+
+
+class AgentTerminalReflexionGame24(Agent):
+    """
+    Agent for Reflexion algorithm
+    """
+
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateGame24,
+        n: int,
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> List[str]:
+        # Format the prompt
+        if state.current_state == "24":
+            prompt = (
+                prompts.cot.format(input=state.puzzle)
+                + "\nSteps:\n"
+                + "\n".join(state.steps)
+                + "\nAnswer: "
+            )
+        else:
+            current_numbers = get_current_numbers(state)
+            prompt = prompts.reflexion.format(input=current_numbers)
+
+        # Generate the response
+        responses = await model.request(
+            prompt=prompt,
+            n=n,
+            request_id=request_id,
+            namespace=namespace,
+            params=params,
+        )
+
+        # Parse the response
+        proposals = [r.split("Possible next step:")[-1].strip() for r in responses]
+        proposals = proposals[:n]
+
+        return proposals
 
 
 def get_current_numbers(state: StateGame24) -> str:

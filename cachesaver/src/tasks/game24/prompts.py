@@ -233,6 +233,32 @@ Action: 8 + 16 = 24 (left: 24)
 Input: {input}
 '''
 
+# Reflexion prompt for Game24
+reflexion = '''Use numbers and basic arithmetic operations (+ - * /) to obtain 24. Each step, you are only allowed to choose two of the remaining numbers to obtain a new number.
+
+Example: 2 8 8 14
+Thought: I need to get to 24. Let me analyze the numbers and plan my moves.
+Action: 14 + 2 = 16 (left: 8 8 16)
+Thought: Now I have 8, 8, and 16. I can multiply 8 and 8 to get 64, but that's too big. Let me try another approach.
+Action: 8 * 8 = 64 (left: 16 64)
+Thought: 64 is too big. Let me try a different combination.
+Action: 16 - 8 = 8 (left: 8 8)
+Thought: Now I have two 8s. I can multiply them to get 64, but that's too big. Let me try another approach.
+Action: 8 + 8 = 16 (left: 16)
+Thought: I'm stuck. Let me try a different initial move.
+Action: 8 / 2 = 4 (left: 4 8 14)
+Thought: This looks promising. Now I have 4, 8, and 14.
+Action: 14 - 4 = 10 (left: 8 10)
+Thought: Now I have 8 and 10. I can multiply them to get 80, but that's too big. Let me try another approach.
+Action: 10 - 8 = 2 (left: 2)
+Thought: I'm stuck again. Let me try one more initial move.
+Action: 2 * 8 = 16 (left: 8 14 16)
+Thought: Now I have 8, 14, and 16. I can add 8 and 16 to get 24!
+Action: 8 + 16 = 24 (left: 24)
+
+Input: {input}
+'''
+
 # Self-evaluation prompts for Game24
 self_evaluate_step = '''You are evaluating a reasoning step in the Game of 24. Given the current numbers and the proposed step, determine if this step is correct and logical. Consider:
 1. Does the step use valid arithmetic operations?
