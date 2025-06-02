@@ -11,6 +11,8 @@ load_dotenv
 OPENAI_API_KEY=os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)  
 
+test="hellooo"
+
 class LLM(SingleRequestModel, BatchRequestModel):
     def __init__(self,client:AsyncOpenAI,model:str='gpt-4'):
         self.client=client
