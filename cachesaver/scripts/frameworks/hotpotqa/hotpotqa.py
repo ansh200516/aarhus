@@ -10,6 +10,7 @@ from diskcache import Cache
 from openai import AsyncOpenAI
 from omegaconf import OmegaConf
 from together import AsyncTogether
+from groq import AsyncGroq
 logger = logging.getLogger(__name__)
 
 import sys
@@ -20,6 +21,7 @@ from src.algorithms.react import AlgorithmReact, AgentDictReact
 from src.utils import tokens2cost, clean_log
 from src.algorithms import *
 from src.models import OnlineLLM, API
+from src.models import GroqAPILLM
 from src.typedefs import Algorithm, DecodingParameters
 from src.tasks.hotpotqa import *
 
@@ -121,10 +123,16 @@ async def run(args, trial, cache_path):
         client = AsyncOpenAI(**client_params)
     elif args.provider == "together":
         client = AsyncTogether() # Assumes TOGETHER_API_KEY is in env
+    elif args.provider == "groq":
+        client = AsyncGroq() # Assumes GROQ_API_KEY is in env
     else:
         raise ValueError("Invalid provider. Choose 'openai' or 'together'. Local not fully supported yet.")
     
-    model_layer = OnlineLLM(client=client)
+
+    if args.provider == 'groq':
+        model_layer = GroqAPILLM(use_multiple_keys=False)
+    else:
+        model_layer = OnlineLLM(client=client)
     
     pipeline = OnlineAPI(
                     model=model_layer,
@@ -209,12 +217,12 @@ async def run(args, trial, cache_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run HotPotQA experiments using LLMs.")
-    parser.add_argument("--provider", type=str, default="openai", help="LLM provider (e.g., 'openai', 'together')")
+    parser.add_argument("--provider", type=str, default="groq", help="LLM provider (e.g., 'openai', 'together', 'groq')")
     parser.add_argument("--base_url", type=str, default=None, help="Base URL for the API (optional)")
-    parser.add_argument("--model", type=str, default="gpt-3.5-turbo", help="LLM model identifier")
+    parser.add_argument("--model", type=str, default="meta-llama/llama-4-scout-17b-16e-instruct", help="LLM model identifier")
     parser.add_argument("--batch_size", type=int, default=1, help="CacheSaver's batch size")
     parser.add_argument("--timeout", type=float, default=10.0, help="CacheSaver's timeout in seconds")
-    parser.add_argument("--temperature", type=float, default=0.0, help="Temperature for the model")
+    parser.add_argument("--temperature", type=float, default=0.2, help="Temperature for the model")
     parser.add_argument("--max_completion_tokens", type=int, default=256, help="Max completion tokens")
     parser.add_argument("--top_p", type=float, default=1.0, help="Top P for the model")
     parser.add_argument("--stop", type=str, nargs="+", default=None, help="Stop sequence(s) for the model (e.g. Observation)")
