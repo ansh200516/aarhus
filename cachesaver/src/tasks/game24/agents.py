@@ -409,7 +409,12 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
         actions = [r.split("Possible next step:")[-1].strip() for r in responses]
         actions = actions[:n]
 
-        return actions
+        states = [EnvironmentGame24.step(state, action) for action in actions]
+        for state in states:
+            if any(EnvironmentGame24.evaluate(state)[1] == 1 for state in states):
+                return states
+        
+        return states
 
 
 def get_current_numbers(state: StateGame24) -> str:

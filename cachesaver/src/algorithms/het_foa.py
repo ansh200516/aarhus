@@ -25,7 +25,7 @@ def wrap_agent_in_env(agent_class, env):
         async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
             actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)            
             new_states = [env.step(state, action) for action in actions]
-            return new_states[0]
+            return new_states
 
     WrappedAgent.__name__ = f"EnvWrapped{agent_class.__name__}"
     WrappedAgent.__qualname__ = f"EnvWrapped{agent_class.__qualname__}"
@@ -120,7 +120,10 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 )
                 for i, state in enumerate(states)
             ]
-            states = await asyncio.gather(*agent_coroutines)
+            agent_responses = await asyncio.gather(*agent_coroutines)
+            states = []
+            for agent_states in agent_responses:
+                states.extend(agent_states)
 
             # Early stop in case any state is solved
             if any(self.env.evaluate(state)[1] == 1 for state in states):
