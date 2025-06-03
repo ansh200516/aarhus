@@ -2,7 +2,7 @@ import random
 import logging
 import asyncio
 from typing import TypedDict, Optional
-from ..typedefs import Algorithm, Model, Agent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
+from ..typedefs import Algorithm, Model, Agent, StateReturningAgent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
 from ..utils import Resampler
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,24 @@ class AgentDictHeterogenousFOA(TypedDict):
     evaluate: Agent
     eval_params: DecodingParameters
     step_agents: list[AgentDict]
+
+
+def wrap_agent_in_env(agent_class, env):
+    class WrappedAgent(agent_class):
+        @staticmethod
+        async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
+            actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)            
+            new_states = [env.step(state, action) for action in actions]
+            return new_states[0]
+
+    WrappedAgent.__name__ = f"EnvWrapped{agent_class.__name__}"
+    WrappedAgent.__qualname__ = f"EnvWrapped{agent_class.__qualname__}"
+    WrappedAgent.__module__ = agent_class.__module__
+    WrappedAgent.__doc__ = f"EnvWrapped version of {agent_class.__name__} to work with the environment."
+    WrappedAgent.__annotations__ = agent_class.__annotations__.copy()
+
+    return WrappedAgent
+
 
 class AlgorithmHeterogenousFOA(Algorithm):
     def __init__(self,
@@ -55,7 +73,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
             raise IndexError(f"Agent index {i} out of range.")
 
         agent_dict_index = -1
-        while i > 0:
+        while i >= 0:
             agent_dict_index += 1
             i -= self.step_agents[agent_dict_index]["num_agents"]
 
@@ -73,6 +91,16 @@ class AlgorithmHeterogenousFOA(Algorithm):
         # Initialize state for each agent
         states = [state.clone(randomness=random.randint(0, MAX_SEED)) for _ in range(self.num_agents)]
 
+        # Wrap action agents in the environment
+        for i in range(len(self.step_agents)):
+            agent_class = self.step_agents[i]['agent']
+
+            if issubclass(agent_class, StateReturningAgent):
+                continue
+
+            self.step_agents[i]['agent'] = wrap_agent_in_env(agent_class, self.env)
+
+
         solved = False
         for step in range(self.num_steps):
             print(f"Step {step} ({idx})")
@@ -81,7 +109,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 break
 
             # Generate actions for each state
-            action_coroutines = [
+            agent_coroutines = [
                 self._get_ith_agent_dict(i)['agent'].act(
                     model=self._get_ith_agent_dict(i).get('model') or self.model,
                     state=state,
@@ -92,10 +120,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 )
                 for i, state in enumerate(states)
             ]
-            actions = await asyncio.gather(*action_coroutines)
-
-            # Execute actions
-            states = [self.env.step(state, action[0]) for state, action in zip(states, actions)]
+            states = await asyncio.gather(*agent_coroutines)
 
             # Early stop in case any state is solved
             if any(self.env.evaluate(state)[1] == 1 for state in states):

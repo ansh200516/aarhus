@@ -91,13 +91,23 @@ class Environment(ABC):
     def evaluate(state: State) -> Tuple[bool, float]:
         pass
 
+
 class Agent(ABC):
 
     @staticmethod
     @abstractmethod
     def act(model: Model, state: State) -> Any:
         pass
+
     
+class StateReturningAgent(Agent):
+
+    @staticmethod
+    @abstractmethod
+    def act(model: Model, state: State) -> List[State]:
+        pass
+
+
 class Algorithm(ABC):
     def __init__(self, model: Model, agents: dict[str, Agent], env: Environment):
         self.model = model

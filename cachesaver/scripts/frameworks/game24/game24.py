@@ -60,6 +60,12 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             "num_agents": config.het_foa.num_agents // 2,
         })
 
+        # step_agents.append({
+        #     "agent": AgentTerminalReflexionGame24,
+        #     "params": params,
+        #     "num_agents": 2,
+        # })
+
         agents = AgentDictHeterogenousFOA(
             evaluate=AgentEvaluateGame24,
             eval_params=params,

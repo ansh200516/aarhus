@@ -90,6 +90,53 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             inner_solver_main_config=inner_solver_main_config,
             num_trials=config.reflexion_wrapper.num_trials
         )
+    elif method_name == "het_foa":
+        step_agents = []
+
+        # build the fleet of agents here
+        step_agents.append({
+            "agent": AgentActHotpotQA,
+            "params": params,
+            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
+        })
+
+        step_agents.append({
+            "agent": AgentReactHotpotQA,
+            "params": params,
+            "num_agents": config.het_foa.num_agents // 2,
+        })
+
+        # step_agents.append({
+        #     "agent": AgentTerminalReflexionGame24,
+        #     "params": params,
+        #     "num_agents": 2,
+        # })
+
+        agents = AgentDictHeterogenousFOA(
+            evaluate=AgentEvaluateHotpotQA,
+            eval_params=params,
+            step_agents=step_agents
+        )
+
+        logger.info(f"Using these agents for Heterogenous FOA:")
+        for i in range(len(agents["step_agents"])):
+            logger.info(f"{step_agents[i]['agent'].__name__} ({agents['step_agents'][i]['num_agents']}): Temperature: {agents['step_agents'][i]['params'].temperature}, Top P: {agents['step_agents'][i]['params'].top_p}")
+
+
+        method = AlgorithmHeterogenousFOA(
+            model=api,
+            agents=agents,
+            env=EnvironmentHotpotQA,
+            num_agents=config.het_foa.num_agents,
+            num_steps=config.het_foa.num_steps,
+            k=config.het_foa.k,
+            backtrack=config.het_foa.backtrack,
+            resampling=config.het_foa.resampling,
+            origin=config.het_foa.origin,
+            min_steps=config.het_foa.min_steps,
+            num_evaluations=config.het_foa.num_evaluations,
+        )
+
     elif method_name == "foa":
         agents = AgentDictFOA(step=AgentActHotpotQA, evaluate=AgentEvaluateHotpotQA, step_params=params, eval_params=params)
         method = AlgorithmFOA(model=api, agents=agents, env=EnvironmentHotpotQA, **OmegaConf.to_container(config.foa, resolve=True))
@@ -217,9 +264,9 @@ async def run(args, trial, cache_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run HotPotQA experiments using LLMs.")
-    parser.add_argument("--provider", type=str, default="groq", help="LLM provider (e.g., 'openai', 'together', 'groq')")
+    parser.add_argument("--provider", type=str, default="openai", help="LLM provider (e.g., 'openai', 'together', 'groq')")
     parser.add_argument("--base_url", type=str, default=None, help="Base URL for the API (optional)")
-    parser.add_argument("--model", type=str, default="meta-llama/llama-4-scout-17b-16e-instruct", help="LLM model identifier")
+    parser.add_argument("--model", type=str, default="gpt-4.1-nano", help="LLM model identifier")
     parser.add_argument("--batch_size", type=int, default=1, help="CacheSaver's batch size")
     parser.add_argument("--timeout", type=float, default=10.0, help="CacheSaver's timeout in seconds")
     parser.add_argument("--temperature", type=float, default=0.2, help="Temperature for the model")

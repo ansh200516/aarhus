@@ -5,7 +5,7 @@ import numpy as np
 
 from . import prompts as prompts
 from .state import StateGame24
-from ...typedefs import Request, Agent, Model, DecodingParameters
+from ...typedefs import Request, Agent, StateReturningAgent, Model, DecodingParameters
 
 from .environment import EnvironmentGame24
 
@@ -369,9 +369,10 @@ class AgentSelfEvaluateGame24(Agent):
         return value
 
 
-class AgentTerminalReflexionGame24(Agent):
+class AgentTerminalReflexionGame24(StateReturningAgent):
     """
-    Agent for Reflexion algorithm
+    Agent for Reflexion algorithm.
+    Note: This agent returns state when act method is called.
     """
 
     @staticmethod
@@ -382,7 +383,7 @@ class AgentTerminalReflexionGame24(Agent):
         namespace: str,
         request_id: str,
         params: DecodingParameters,
-    ) -> List[str]:
+    ) -> List[StateGame24]:
         # Format the prompt
         if state.current_state == "24":
             prompt = (
@@ -405,10 +406,10 @@ class AgentTerminalReflexionGame24(Agent):
         )
 
         # Parse the response
-        proposals = [r.split("Possible next step:")[-1].strip() for r in responses]
-        proposals = proposals[:n]
+        actions = [r.split("Possible next step:")[-1].strip() for r in responses]
+        actions = actions[:n]
 
-        return proposals
+        return actions
 
 
 def get_current_numbers(state: StateGame24) -> str:
