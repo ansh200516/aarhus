@@ -26,6 +26,7 @@ class EnvironmentGame24(Environment):
 
         state = StateGame24(
             puzzle=state.puzzle,
+            context=state.context,
             current_state=current_state,
             steps=state.steps + [action],
             randomness=randomness

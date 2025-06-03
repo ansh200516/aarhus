@@ -9,11 +9,11 @@ from diskcache import Cache
 from openai import AsyncOpenAI
 from omegaconf import OmegaConf
 from together import AsyncTogether
-from cachesaver.pipelines import OnlineAPI
 logger = logging.getLogger(__name__)
 
 import sys
 sys.path.append(os.getcwd())
+from cachesaver.pipelines import OnlineAPI
 
 from src.utils import tokens2cost, clean_log
 from src.algorithms import *
@@ -22,8 +22,53 @@ from src.typedefs import DecodingParameters
 from src.tasks.game24 import *
 
 def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
-# Setup the method
-    if method_name == "foa":
+    # Setup the method
+    if method_name == "het_foa":
+        step_agents = []
+
+        # build the fleet of agents here
+        step_agents.append({
+            "agent": AgentActGame24,
+            "params": params,
+            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
+        })
+
+        step_agents.append({
+            "agent": AgentReactGame24,
+            "params": params,
+            "num_agents": config.het_foa.num_agents // 2,
+        })
+
+        # step_agents.append({
+        #     "agent": AgentTerminalReflexionGame24,
+        #     "params": params,
+        #     "num_agents": 2,
+        # })
+
+        agents = AgentDictHeterogenousFOA(
+            evaluate=AgentEvaluateGame24,
+            eval_params=params,
+            step_agents=step_agents
+        )
+
+        logger.info(f"Using these agents for Heterogenous FOA:")
+        for i in range(len(agents["step_agents"])):
+            logger.info(f"{step_agents[i]['agent'].__name__} ({agents['step_agents'][i]['num_agents']}): Temperature: {agents['step_agents'][i]['params'].temperature}, Top P: {agents['step_agents'][i]['params'].top_p}")
+
+        method = AlgorithmHeterogenousFOA(
+            model=api,
+            agents=agents,
+            env=EnvironmentGame24,
+            num_agents=config.het_foa.num_agents,
+            num_steps=config.het_foa.num_steps,
+            k=config.het_foa.k,
+            backtrack=config.het_foa.backtrack,
+            resampling=config.het_foa.resampling,
+            origin=config.het_foa.origin,
+            min_steps=config.het_foa.min_steps,
+            num_evaluations=config.het_foa.num_evaluations,
+        )
+    elif method_name == "foa":
         agents = AgentDictFOA(
             step=AgentActGame24,
             evaluate=AgentEvaluateGame24,

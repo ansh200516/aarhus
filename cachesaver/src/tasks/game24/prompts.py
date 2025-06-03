@@ -12,7 +12,7 @@ Possible next step:
 Example: 1 3
 Possible next step:
 1 * 3 = 3 (left: 3)
-
+{context_str}
 Input: {input}
 Possible next step:
 '''
@@ -34,7 +34,7 @@ Possible next steps:
 3 - 1 = 2 (left: 2)
 3 / 1 = 3 (left: 3)
 1 - 3 = -2 (left: -2)
-
+{context_str}
 Input: {input}
 Possible next steps:
 '''
@@ -60,7 +60,7 @@ Selected Next Step Set:
 1, 2, 5
 
 Remember, your task is to select {n_select_sample} steps from the proposed next steps. Do not change the steps, just select them. Return only the indexes of the selected steps. Do not include any other information, explanations, comments or conclusions.
-
+{context_str}
 Input: {state}
 Number of steps to select: {n_select_sample}
 Proposed next steps:
@@ -107,7 +107,7 @@ Steps:
 10 + 5 = 15 (left: 9 15)
 15 + 9 = 24 (left: 24)
 Answer: ((5 + 5) + 5) + 9 = 24
-
+{context_str}
 Input: {input}
 '''
 
@@ -203,7 +203,7 @@ Example: 2 8 8 14
 Thought: 14 is big, maybe I can subtract something from it to get a number I can multiply up to 24.
 Possible next step:
 14 - 8 = 6 (left: 2 8 6)
-
+{context_str}
 Input: {input}
 """
 
@@ -229,34 +229,31 @@ Thought: I'm stuck again. Let me try one more initial move.
 Action: 2 * 8 = 16 (left: 8 14 16)
 Thought: Now I have 8, 14, and 16. I can add 8 and 16 to get 24!
 Action: 8 + 16 = 24 (left: 24)
-
+{context_str}
 Input: {input}
 '''
 
-# Reflexion prompt for Game24
-reflexion = '''Use numbers and basic arithmetic operations (+ - * /) to obtain 24. Each step, you are only allowed to choose two of the remaining numbers to obtain a new number.
+# Reflection prompt for Game24
+reflect = '''You are an advanced reasoning agent that can improve based on self reflection. You will be given a previous reasoning trial where the task was to use numbers and basic arithmetic operations (+ - * /) to obtain 24. In each step, two of the remaining numbers were chosen to obtain a new number. You were unsuccessful in answering the question either because you reached the wrong answer, or you used up your set number of reasoning steps, or your actions were inefficient. In a few sentences, diagnose a possible reason for failure or inefficiency and devise a new, concise, high level plan that aims to mitigate the same failure. Use complete sentences. Also figure out which state to rollback to, to continue the reasoning process. You have been given a specific output format to follow. Strictly follow the output format.
+Output format:
+Diagnosis: <your diagnosis>
+Rollback State: <the state to rollback to>
+(END OF OUTPUT FORMAT)
 
-Example: 2 8 8 14
-Thought: I need to get to 24. Let me analyze the numbers and plan my moves.
-Action: 14 + 2 = 16 (left: 8 8 16)
-Thought: Now I have 8, 8, and 16. I can multiply 8 and 8 to get 64, but that's too big. Let me try another approach.
-Action: 8 * 8 = 64 (left: 16 64)
-Thought: 64 is too big. Let me try a different combination.
-Action: 16 - 8 = 8 (left: 8 8)
-Thought: Now I have two 8s. I can multiply them to get 64, but that's too big. Let me try another approach.
-Action: 8 + 8 = 16 (left: 16)
-Thought: I'm stuck. Let me try a different initial move.
-Action: 8 / 2 = 4 (left: 4 8 14)
-Thought: This looks promising. Now I have 4, 8, and 14.
-Action: 14 - 4 = 10 (left: 8 10)
-Thought: Now I have 8 and 10. I can multiply them to get 80, but that's too big. Let me try another approach.
-Action: 10 - 8 = 2 (left: 2)
-Thought: I'm stuck again. Let me try one more initial move.
-Action: 2 * 8 = 16 (left: 8 14 16)
-Thought: Now I have 8, 14, and 16. I can add 8 and 16 to get 24!
-Action: 8 + 16 = 24 (left: 24)
+Previous trial:
+{previous_trial}
+(END OF PREVIOUS TRIAL)
 
-Input: {input}
+Output:
+'''
+
+# RAFA reflect_prompt for Game24
+reflect_rafa = '''Now we would like to play a game of 24. That is, given 4 numbers, try to use them with arithmetic operations (+ - * /) to get 24. Now we consider the following puzzle: {puzzle}. 
+Here is an attempt answer: 
+{previous_trial}
+And we have the following feedback: 
+{feedback}
+Now using the above feedback, give 'sure' or 'impossible' labels for each formula with left numbers from each step. Give 'sure' if the formula is correct and can lead to 24 and give 'impossible' if the formula is incorrect or illegal. First repeat the formula with left numbers from each step above and then give the label, with the following form: {{formula}} (left: {{left numbers}}): {{label}}.
 '''
 
 # Self-evaluation prompts for Game24

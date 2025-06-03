@@ -216,7 +216,7 @@ async def run(args, trial, cache_path):
         "max": np.max(api.latencies), 
         "min": np.min(api.latencies), 
         "total": np.sum(api.latencies)
-        }
+    }
     reuse = {
         "mean": np.mean(list(api.reuse.values())),
         "std": np.std(list(api.reuse.values())),

@@ -12,7 +12,9 @@ class BenchmarkGame24(Benchmark):
         data = list(zip(df['index'], df['Puzzles']))
 
         if  split == "single":
-            self.data = data[0:1]
+            self.data = data[:1]
+        elif split == "two":
+            self.data = data[:2]
         elif split == "mini":
             self.data = data[:10]
         elif split == "mid":

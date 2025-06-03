@@ -20,10 +20,10 @@ class AgentDictHeterogenousFOA(TypedDict):
 
 
 def wrap_agent_in_env(agent_class, env):
-    class WrappedAgent(agent_class):
+    class WrappedAgent(agent_class, StateReturningAgent):
         @staticmethod
         async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
-            actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)            
+            actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)
             new_states = [env.step(state, action) for action in actions]
             return new_states
 
@@ -99,7 +99,6 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 continue
 
             self.step_agents[i]['agent'] = wrap_agent_in_env(agent_class, self.env)
-
 
         solved = False
         for step in range(self.num_steps):

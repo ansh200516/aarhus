@@ -2,6 +2,7 @@ import re
 import random
 from typing import List
 import numpy as np
+import asyncio
 
 from . import prompts as prompts
 from .state import StateGame24
@@ -26,14 +27,15 @@ class AgentActGame24(Agent):
         # Format the prompt
         if state.current_state == "24":
             prompt = (
-                prompts.cot.format(input=state.puzzle)
+                prompts.cot.format(input=state.puzzle, context_str='')
                 + "\nSteps:\n"
                 + "\n".join(state.steps)
                 + "\nAnswer: "
             )
         else:
+            context_str = get_context(state)
             current_numbers = get_current_numbers(state)
-            prompt = prompts.bfs.format(input=current_numbers)
+            prompt = prompts.bfs.format(input=current_numbers, context_str=context_str)
 
         if prompt in act_cache:
             proposals = act_cache[prompt][:n]
@@ -61,7 +63,8 @@ class AgentActGame24(Agent):
         random.seed(state.randomness)
         random.shuffle(proposals)
         act_cache[prompt].extend(proposals[n:])
-        return proposals[:n]
+        actions = proposals[:n]
+        return actions
 
 
 class AgentAggregateGame24(Agent):
@@ -90,8 +93,10 @@ class AgentAggregateGame24(Agent):
         for idx, action in enumerate(actions):
             proposals += f"({idx + 1}) " + action + "\n"
 
+        context_str = get_context(state)
         prompt = prompts.aggregate.format(
-            state=state.current_state, proposal=proposals.strip(), n_select_sample=k
+            state=state.current_state, proposal=proposals.strip(), n_select_sample=k,
+            context_str=context_str
         )
 
         responses = await model.request(
@@ -127,15 +132,16 @@ class AgentBfsGame24(Agent):
         # Format the prompt
         if len(state.current_state.strip().split(" ")) == 1:
             prompt = (
-                prompts.cot.format(input=state.puzzle)
+                prompts.cot.format(input=state.puzzle, context_str='')
                 + "\nSteps:\n"
                 + "\n".join(state.steps).strip()
                 + "\nAnswer: "
             )
 
         else:
+            context_str = get_context(state)
             current_numbers = get_current_numbers(state)
-            prompt = prompts.bfs.format(input=current_numbers)
+            prompt = prompts.bfs.format(input=current_numbers, context_str=context_str)
 
         # Generate the response
         response = await model.request(
@@ -222,14 +228,15 @@ class AgentReactGame24(Agent):
         # Format the prompt
         if state.current_state == "24":
             prompt = (
-                prompts.cot.format(input=state.puzzle)
+                prompts.cot.format(input=state.puzzle, context_str='')
                 + "\nSteps:\n"
                 + "\n".join(state.steps)
                 + "\nAnswer: "
             )
         else:
+            context_str = get_context(state)
             current_numbers = get_current_numbers(state)
-            prompt = prompts.react.format(input=current_numbers)
+            prompt = prompts.react.format(input=current_numbers, context_str=context_str)
 
         # Generate the response
         responses = await model.request(
@@ -261,14 +268,15 @@ class AgentRapGame24(Agent):
     ) -> List[str]:
         if state.current_state == "24":
             prompt = (
-                prompts.cot.format(input=state.puzzle)
+                prompts.cot.format(input=state.puzzle, context_str='')
                 + "\nSteps:\n"
                 + "\n".join(state.steps)
                 + "\nAnswer: "
             )
         else:
             current_numbers = get_current_numbers(state)
-            prompt = prompts.react.format(input=current_numbers)
+            context_str = get_context(state)
+            prompt = prompts.react.format(input=current_numbers, context_str=context_str)
 
         responses = await model.request(
             prompt=prompt,
@@ -376,6 +384,60 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
     """
 
     @staticmethod
+    async def reflect(
+        state: StateGame24,
+        model: Model,
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> StateGame24:
+        # create the thought prompt
+        previous_trial = f'State: {state.puzzle}\n'
+        prev_states = [state.puzzle]
+        for step in state.steps:
+            step = step.strip()
+            action, next_state = step.split('(left: ')
+            action = action.strip()
+            next_state = next_state.strip(' )')
+            prev_states.append(next_state)
+            previous_trial += f"Action: {action}\nState: {next_state}\n"
+
+        prompt = prompts.reflect.format(
+            previous_trial=previous_trial
+        )
+
+        # call the model
+        response = await model.request(
+            prompt=prompt,
+            n=1,
+            request_id=request_id,
+            namespace=namespace,
+            params=params
+        )
+
+        # add the thought to the initial state and package that up as a new state
+        response = response[0].strip()
+        rollback_state = response.split("Rollback State:")[-1].strip()
+
+        # verify rollback state
+        if rollback_state not in prev_states:
+            # then restart from the beginning
+            rollback_state = state.puzzle
+        
+        thought = response.split("Rollback State:")[0].strip().split("Diagnosis:")[-1].strip()
+        new_state = StateGame24(
+            puzzle=state.puzzle,
+            current_state=rollback_state, # change this, currently starting from beginning
+            steps=state.steps[:prev_states.index(rollback_state)],
+            randomness=state.randomness,
+            context=state.context + f"\n{thought}\n",
+        )
+        
+        # return that state
+        return new_state
+
+
+    @staticmethod
     async def act(
         model: Model,
         state: StateGame24,
@@ -387,33 +449,85 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
         # Format the prompt
         if state.current_state == "24":
             prompt = (
-                prompts.cot.format(input=state.puzzle)
+                prompts.cot.format(input=state.puzzle, context_str='')
                 + "\nSteps:\n"
                 + "\n".join(state.steps)
                 + "\nAnswer: "
             )
         else:
+            context_str = get_context(state)
             current_numbers = get_current_numbers(state)
-            prompt = prompts.reflexion.format(input=current_numbers)
+            prompt = prompts.bfs.format(input=current_numbers, context_str=context_str)
 
-        # Generate the response
-        responses = await model.request(
-            prompt=prompt,
-            n=n,
-            request_id=request_id,
-            namespace=namespace,
-            params=params,
-        )
+        if prompt in act_cache:
+            proposals = act_cache[prompt][:n]
+            act_cache[prompt] = act_cache[prompt][n:]
+        else:
+            proposals = []
+            act_cache[prompt] = []
+
+        while len(proposals) < n:
+            # Generate the response
+            response = await model.request(
+                prompt=prompt,
+                n=1,
+                request_id=request_id,
+                namespace=namespace,
+                params=params,
+            )
+
+            # Parse the response
+            if state.current_state != "24":
+                response = [response[0].rpartition(")")[0] + ")"]
+            proposals.extend(r.strip() for r in response[0].split("\n"))
+            if "Possible next steps:" in proposals:
+                proposals.remove("Possible next steps:")
 
         # Parse the response
-        actions = [r.split("Possible next step:")[-1].strip() for r in responses]
-        actions = actions[:n]
+        random.seed(state.randomness)
+        random.shuffle(proposals)
+        act_cache[prompt].extend(proposals[n:])
+        actions = proposals[:n]
+
+        input(actions)
 
         states = [EnvironmentGame24.step(state, action) for action in actions]
-        for state in states:
-            if any(EnvironmentGame24.evaluate(state)[1] == 1 for state in states):
-                return states
+
+        input(states)
+
+        reflection_coroutines = []
+        for i, state in enumerate(states):
+            # if any of the states won, just return that state
+            if EnvironmentGame24.evaluate(state)[1] == 1:
+                print('found a winning state')
+                return [state]
         
+            # If failed terminal state, create the thought
+            if EnvironmentGame24.is_final(state):
+                print('found a failed terminal state')
+                states[i] = None
+                reflection_coroutines.append(
+                    AgentTerminalReflexionGame24.reflect(
+                        state=state,
+                        model=model,
+                        namespace=namespace,
+                        request_id=f"{request_id}-reflect-{i}",
+                        params=params,
+                    )
+                )
+        
+        if len(reflection_coroutines) == 0:
+            print('no terminal states found')
+            return states
+        
+        reflected_states = await asyncio.gather(*reflection_coroutines)
+        
+        for i, state in enumerate(states):
+            if state is not None:
+                continue
+
+            states[i] = reflected_states.pop()
+            
         return states
 
 
@@ -423,6 +537,13 @@ def get_current_numbers(state: StateGame24) -> str:
     """
     last_line = state.current_state.strip().split("\n")[-1]
     return last_line.split("left: ")[-1].split(")")[0]
+
+
+def get_context(state: StateGame24) -> str:
+    context_str = ''
+    if state.context:
+            context_str = f"\nUse the given context as a guideline to solve the problem. Do not mention any usage of the context. Strictly follow the output format guidelines.\nContext: {state.context}\n\n(END OF CONTEXT)\n"
+    return context_str
 
 
 def get_formula(state: StateGame24) -> str:
