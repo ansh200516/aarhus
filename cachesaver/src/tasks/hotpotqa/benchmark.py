@@ -43,7 +43,7 @@ class BenchmarkHotpotQA(Benchmark):
         # mini_set_idxs = random.sample(list(valid_idxs), 5)
         # valid_idxs -= set(mini_set_idxs)
         
-        mini_set_idxs = random.sample(list(valid_idxs), 10)
+        mini_set_idxs = random.sample(list(valid_idxs), 15)
         valid_idxs -= set(mini_set_idxs)
 
         train_set_idxs = random.sample(list(valid_idxs), 50)
@@ -53,6 +53,7 @@ class BenchmarkHotpotQA(Benchmark):
         valid_idxs -= set(validation_set_idxs)
 
         if split == "single":
+            single_set_idxs = [7393] # TODO: Remove
             self.data = [data[i] for i in single_set_idxs]
         elif split == "mini":
                 self.data = [data[i] for i in mini_set_idxs]

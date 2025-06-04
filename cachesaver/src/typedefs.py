@@ -1,4 +1,4 @@
-from typing import List, Tuple, Any, NamedTuple, Optional
+from typing import List, Tuple, Any, NamedTuple, Optional, TypedDict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from cachesaver.typedefs import Batch, Response, SingleRequestModel, BatchRequestModel
@@ -108,6 +108,21 @@ class StateReturningAgent(Agent):
         pass
 
 
+class ValueFunctionRequiringAgent(Agent):
+
+    @staticmethod
+    @abstractmethod
+    def act(model: Model, state: State, value_agent) -> Any:
+        pass
+
+class ValueFunctionUsingAgent(Agent):
+
+    @staticmethod
+    @abstractmethod
+    def act(model: Model, state: State) -> Any:
+        pass
+
+
 class Algorithm(ABC):
     def __init__(self, model: Model, agents: dict[str, Agent], env: Environment):
         self.model = model
@@ -121,3 +136,10 @@ class Algorithm(ABC):
     @abstractmethod
     async def benchmark(self, benchmark: Benchmark) -> List[List[State]]:
         pass
+
+
+class AgentDict(TypedDict):
+    agent: Agent
+    params: DecodingParameters
+    model: Optional[Model]
+    num_agents: int

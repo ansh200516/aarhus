@@ -6,7 +6,7 @@ het_foa:
   resampling: "linear_filtered"
   min_steps: 1
   num_evaluations: 3
-  origin: 120
+  origin: 10
 
 foa:
   num_agents: 5

@@ -5,11 +5,12 @@ import numpy as np
 from typing import List, Tuple
 import itertools
 import asyncio
+from dataclasses import replace
 
 from . import prompts as prompts
 from .environment import EnvironmentHotpotQA
 from .state import StateHotpotQA
-from ...typedefs import Agent, StateReturningAgent, Model, DecodingParameters
+from ...typedefs import AgentDict, Agent, StateReturningAgent, ValueFunctionRequiringAgent, Model, DecodingParameters
 
 
 class AgentActHotpotQA(Agent):
@@ -26,10 +27,6 @@ class AgentActHotpotQA(Agent):
         request_id: str,
         params: DecodingParameters,
     ) -> List[str]:
-        # TODO: REMOVE
-        if len(state.reflections) > 0:
-            print(f"Acting on state with thought!")
-
         num_examples = 2
         examples = "(Example)\n" + "\n\n(Example)\n".join(
             [example for example in prompts.examples_act[:num_examples]]
@@ -196,12 +193,6 @@ class AgentReactHotpotQA(Agent):
         """
         Returns a list of n thought-action pairs for the HotpotQA task.
         """
-
-        # TODO: REMOVE
-        if len(state.reflections) > 0:
-            print(f"Reacting on state with thought!")
-
-
         # Format the prompt
         num_examples = 2
         examples = "(Example)\n" + "\n\n(Example)\n".join(
@@ -345,6 +336,10 @@ class AgentEvaluateHotpotQA(Agent):
         if cache is not None and state.current_state in cache:
             return cache[state.current_state]
 
+        if state.value is not None:
+            return state.value        
+
+
         # Format the prompt
         num_examples = 2
         examples = "(Example)\n" + "\n\n(Example)\n".join(
@@ -380,6 +375,7 @@ class AgentEvaluateHotpotQA(Agent):
         # Cache the value
         if cache is not None:
             cache[state.current_state] = value
+        
         return value
 
 
@@ -415,18 +411,10 @@ class AgentReflectHotpotQA(Agent):
         )
 
         reflection_text = responses[0].strip()
-
-        print(f"Reflection generated: {reflection_text}")
-
         return reflection_text
         
 
 class AgentTerminalReflectHotpotQA(StateReturningAgent):
-    """
-    Agent performing the Act operation for the HotpotQA task.
-    Can use reflections if provided in the state.
-    """
-
     @staticmethod
     async def act(
         model: Model,
@@ -445,7 +433,7 @@ class AgentTerminalReflectHotpotQA(StateReturningAgent):
             params=params,
         )
 
-        # additional reflection logic
+        # additional terminal reflection logic
         states = [EnvironmentHotpotQA.step(state, action) for action in actions]
 
         reflection_coroutines = []
@@ -489,6 +477,102 @@ class AgentTerminalReflectHotpotQA(StateReturningAgent):
             )
 
         return states
+
+
+class AgentValueReduceReflectHotpotQA(StateReturningAgent, ValueFunctionRequiringAgent):
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateHotpotQA,
+        n: int, # Number of responses/actions to generate
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+        value_agent: AgentDict
+    ) -> List[str]:
+        actions = await AgentActHotpotQA.act(
+            model=model,
+            state=state,
+            n=n,
+            namespace=namespace,
+            request_id=request_id,
+            params=params,
+        )
+
+        # additional reflection logic: when value of new states is lower than current state
+        states = [EnvironmentHotpotQA.step(state, action) for action in actions]
+        failed_states = []
+        non_terminal_states = []
+        value_reduced_states = []
+        new_states = []
+
+        for s in states:
+            # return the winning state if it exists
+            if EnvironmentHotpotQA.evaluate(s)[0] == 1:
+                return [s]
+            
+            # add failing states to the list
+            if EnvironmentHotpotQA.is_final(s):
+                failed_states.append(s)
+            else:
+                non_terminal_states.append(s)        
+        
+        # get values for non terminal states
+        if len(non_terminal_states) > 0:
+            value_coroutines = [
+                value_agent["agent"].act(
+                    model=value_agent.get('model') or model,
+                    state=s,
+                    n=value_agent['num_agents'],
+                    namespace=namespace,
+                    request_id=f"{request_id}-value-{i}",
+                    params=value_agent['params'],
+                ) for i, s in enumerate(non_terminal_states)
+            ]
+            values = await asyncio.gather(*value_coroutines)
+            for i in range(len(non_terminal_states)):
+                if values[i] >= state.value:
+                    # if the value of the new state is higher than the current state, keep it
+                    new_states.append(replace(non_terminal_states[i], value=values[i]))
+                else:
+                    value_reduced_states.append(replace(non_terminal_states[i], value=values[i]))
+
+        # get values for failed states
+        if len(failed_states) > 0:
+            for i in range(len(failed_states)):
+                value_reduced_states.append(replace(failed_states[i], value=0))
+        
+        if len(value_reduced_states) == 0:
+            # if no states were reduced, return the new states
+            return new_states
+        
+
+        # reflect on the value reduced states
+        reflection_coroutines = []
+        for i, s in enumerate(value_reduced_states):
+            reflection_coroutines.append(
+                AgentReflectHotpotQA.act(
+                    model=model,
+                    state=s,
+                    n=1,
+                    namespace=namespace,
+                    request_id=f"{request_id}-reflect-{i}",
+                    params=params,
+                )
+            )
+
+        thoughts = await asyncio.gather(*reflection_coroutines)
+        num_thoughts = len(thoughts)
+
+        for i in range(num_thoughts):
+            old_state_with_thought = state.clone()
+            old_state_with_thought.reflections.insert(0, thoughts.pop(0))
+
+            # TODO: Adjust the value of the state after reflection
+            new_value = state.value + 0.5 # small increase in value for reflection
+            new_states.append(replace(old_state_with_thought, value=new_value))
+
+        return new_states
 
 
 # ---Helper functions---

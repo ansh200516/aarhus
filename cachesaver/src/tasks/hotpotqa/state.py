@@ -25,7 +25,12 @@ class StateHotpotQA(State):
     # A random number associated with the state
     randomness: int
     
+    # A list to store all reflections made during the process
     reflections: List[str] = field(default_factory=list)
+
+    # Value for this state. None means the value has not been computed yet.
+    value: Optional[float] = None
+
 
     def serialize(self) -> dict:
         """
@@ -56,7 +61,8 @@ class StateHotpotQA(State):
             answer=self.answer,
             docstore=self.docstore,
             randomness=randomness or self.randomness,
-            reflections=current_reflections
+            reflections=current_reflections,
+            value=self.value
         )
 
     def get_seed(self) -> int:
