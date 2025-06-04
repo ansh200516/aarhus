@@ -2,38 +2,17 @@ import random
 import logging
 import asyncio
 from typing import TypedDict, Optional
-from ..typedefs import Algorithm, Model, Agent, StateReturningAgent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
+from dataclasses import replace
+from ..typedefs import Algorithm, Model, AgentDict, Agent, StateReturningAgent, ValueFunctionRequiringAgent, ValueFunctionUsingAgent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
 from ..utils import Resampler
 logger = logging.getLogger(__name__)
 
-
-class AgentDict(TypedDict):
-    agent: Agent
-    params: DecodingParameters
-    model: Optional[Model]
-    num_agents: int
 
 class AgentDictHeterogenousFOA(TypedDict):
     evaluate: Agent
     eval_params: DecodingParameters
     step_agents: list[AgentDict]
 
-
-def wrap_agent_in_env(agent_class, env):
-    class WrappedAgent(agent_class, StateReturningAgent):
-        @staticmethod
-        async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
-            actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)
-            new_states = [env.step(state, action) for action in actions]
-            return new_states
-
-    WrappedAgent.__name__ = f"EnvWrapped{agent_class.__name__}"
-    WrappedAgent.__qualname__ = f"EnvWrapped{agent_class.__qualname__}"
-    WrappedAgent.__module__ = agent_class.__module__
-    WrappedAgent.__doc__ = f"EnvWrapped version of {agent_class.__name__} to work with the environment."
-    WrappedAgent.__annotations__ = agent_class.__annotations__.copy()
-
-    return WrappedAgent
 
 
 class AlgorithmHeterogenousFOA(Algorithm):
@@ -78,12 +57,78 @@ class AlgorithmHeterogenousFOA(Algorithm):
             i -= self.step_agents[agent_dict_index]["num_agents"]
 
         return self.step_agents[agent_dict_index]
+    
+
+    def _wrap_agent_in_env(self, agent_class):
+        if issubclass(agent_class, StateReturningAgent):
+            return agent_class
+                
+        class EnvWrappedAgent(agent_class, StateReturningAgent):
+            @staticmethod
+            async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
+                actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)
+                new_states = [self.env.step(state, action) for action in actions]
+                return new_states
+        
+        EnvWrappedAgent.__name__ = f"EnvWrapped{agent_class.__name__}"
+        EnvWrappedAgent.__qualname__ = f"EnvWrapped{agent_class.__qualname__}"
+        EnvWrappedAgent.__module__ = agent_class.__module__
+        EnvWrappedAgent.__doc__ = f"EnvWrapped version of {agent_class.__name__} to work with the environment."
+        EnvWrappedAgent.__annotations__ = agent_class.__annotations__.copy()
+
+        return EnvWrappedAgent
+
+
+    def _wrap_agent_in_value_function(self, agent_class):
+        if not issubclass(agent_class, ValueFunctionRequiringAgent) or issubclass(agent_class, ValueFunctionUsingAgent):
+            return agent_class
+                
+        class ValueFunctionWrappedAgent(agent_class, ValueFunctionUsingAgent):
+            @staticmethod
+            async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
+                value_agent = AgentDict(
+                    agent=self.eval_agent,
+                    params=self.eval_params,
+                    model=self.model,
+                    num_agents=self.num_evaluations
+                )
+
+                return await agent_class.act(
+                    model=model, 
+                    state=state, 
+                    n=n, 
+                    namespace=namespace, 
+                    request_id=request_id, 
+                    params=params, 
+                    value_agent=value_agent
+                )
+        
+        ValueFunctionWrappedAgent.__name__ = f"ValueFunctionWrapped{agent_class.__name__}"
+        ValueFunctionWrappedAgent.__qualname__ = f"ValueFunctionWrapped{agent_class.__qualname__}"
+        ValueFunctionWrappedAgent.__module__ = agent_class.__module__
+        ValueFunctionWrappedAgent.__doc__ = f"ValueFunctionWrapped version of {agent_class.__name__} to work with the value function."
+        ValueFunctionWrappedAgent.__annotations__ = agent_class.__annotations__.copy()
+
+        return ValueFunctionWrappedAgent
+
+
+    def _wrap_agent(self, agent_class):
+        agent_class = self._wrap_agent_in_env(agent_class)
+        agent_class = self._wrap_agent_in_value_function(agent_class)
+        return agent_class
 
 
     async def solve(self, idx: int, state: State, namespace: str, value_cache: dict = None):
         randomness = idx
         random.seed(randomness)
         resampler = Resampler(randomness)
+
+        # set the value of inital state
+        state = replace(state, value=self.origin*self.backtrack)
+
+
+        print('initial problem state:')
+        print(state.puzzle)
 
         # Records of previously visited states (state_identifier, state_value, state)
         visited_states = [("INIT", self.origin, state)]
@@ -94,12 +139,8 @@ class AlgorithmHeterogenousFOA(Algorithm):
         # Wrap action agents in the environment
         for i in range(len(self.step_agents)):
             agent_class = self.step_agents[i]['agent']
-
-            if issubclass(agent_class, StateReturningAgent):
-                continue
-
-            self.step_agents[i]['agent'] = wrap_agent_in_env(agent_class, self.env)
-
+            self.step_agents[i]['agent'] = self._wrap_agent(agent_class)
+        
         solved = False
         for step in range(self.num_steps):
             print(f"Step {step} ({idx})")
@@ -161,9 +202,10 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 values = await asyncio.gather(*value_coroutines)
 
                 # Update previously visited states records
-                for i, (state, value) in enumerate(zip(states, values)):
+                for i, value in enumerate(values):
+                    states[i] = replace(states[i], value=value)
                     if i not in failed:
-                        visited_states.append((f"{i}.{step}", value, state))
+                        visited_states.append((f"{i}.{step}", value, states[i]))
 
                 # Resampling
                 states, resampled_idxs = resampler.resample(visited_states, self.num_agents, self.resampling)

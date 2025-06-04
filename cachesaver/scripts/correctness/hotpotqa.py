@@ -28,7 +28,7 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
 
         # build the fleet of agents here
         step_agents.append({
-            "agent": AgentTerminalReflectHotpotQA,
+            "agent": AgentValueReduceReflectHotpotQA,
             "params": params,
             "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
         })
