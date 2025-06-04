@@ -4,10 +4,12 @@ from urllib import response
 import numpy as np
 from typing import List, Tuple
 import itertools
+import asyncio
 
 from . import prompts as prompts
+from .environment import EnvironmentHotpotQA
 from .state import StateHotpotQA
-from ...typedefs import Agent, Model, DecodingParameters
+from ...typedefs import Agent, StateReturningAgent, Model, DecodingParameters
 
 
 class AgentActHotpotQA(Agent):
@@ -24,6 +26,10 @@ class AgentActHotpotQA(Agent):
         request_id: str,
         params: DecodingParameters,
     ) -> List[str]:
+        # TODO: REMOVE
+        if len(state.reflections) > 0:
+            print(f"Acting on state with thought!")
+
         num_examples = 2
         examples = "(Example)\n" + "\n\n(Example)\n".join(
             [example for example in prompts.examples_act[:num_examples]]
@@ -191,6 +197,11 @@ class AgentReactHotpotQA(Agent):
         Returns a list of n thought-action pairs for the HotpotQA task.
         """
 
+        # TODO: REMOVE
+        if len(state.reflections) > 0:
+            print(f"Reacting on state with thought!")
+
+
         # Format the prompt
         num_examples = 2
         examples = "(Example)\n" + "\n\n(Example)\n".join(
@@ -228,46 +239,6 @@ class AgentReactHotpotQA(Agent):
         # Parse the responses
         react_actions = [r.strip() for r in responses]
         return react_actions
-
-
-class AgentReflectHotpotQA(Agent):
-    """
-    Agent performing the Reflection operation for the HotpotQA task.
-    It analyzes a failed or suboptimal trajectory and generates a textual reflection
-    to guide future attempts.
-    """
-
-    @staticmethod
-    async def act(
-        model: Model,
-        state: StateHotpotQA, # Contains the trajectory of the failed attempt
-        namespace: str,
-        request_id: str,
-        params: DecodingParameters,
-    ) -> str:
-        num_examples = min(2, len(prompts.examples_reflect))
-        examples_str = "(Example Reflection)\n" + "\n\n(Example Reflection)\n".join(
-        [example for example in prompts.examples_reflect[:num_examples]]
-        )
-        
-        scratchpad = state.current_state
-
-        prompt = prompts.reflect.format(
-            examples=examples_str,
-            question=state.puzzle,
-            scratchpad=scratchpad
-        )
-        
-        responses = await model.request(
-            prompt=prompt,
-            n=1, 
-            request_id=request_id,
-            namespace=namespace,
-            params=params,
-        )
-
-        reflection_text = responses[0].strip()
-        return reflection_text
 
         
 class AgentSelfEvaluateHotpotQA(Agent):
@@ -410,6 +381,114 @@ class AgentEvaluateHotpotQA(Agent):
         if cache is not None:
             cache[state.current_state] = value
         return value
+
+
+class AgentReflectHotpotQA(Agent):
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateHotpotQA,
+        n: int, # Number of responses/actions to generate
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ):
+        num_examples = min(2, len(prompts.examples_reflect))
+        examples_str = "(Example Reflection)\n" + "\n\n(Example Reflection)\n".join(
+        [example for example in prompts.examples_reflect[:num_examples]]
+        )
+        
+        scratchpad = state.current_state
+
+        prompt = prompts.reflect.format(
+            examples=examples_str,
+            question=state.puzzle,
+            scratchpad=scratchpad
+        )
+        
+        responses = await model.request(
+            prompt=prompt,
+            n=1, 
+            request_id=request_id,
+            namespace=namespace,
+            params=params,
+        )
+
+        reflection_text = responses[0].strip()
+
+        print(f"Reflection generated: {reflection_text}")
+
+        return reflection_text
+        
+
+class AgentTerminalReflectHotpotQA(StateReturningAgent):
+    """
+    Agent performing the Act operation for the HotpotQA task.
+    Can use reflections if provided in the state.
+    """
+
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateHotpotQA,
+        n: int, # Number of responses/actions to generate
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> List[str]:
+        actions = await AgentActHotpotQA.act(
+            model=model,
+            state=state,
+            n=n,
+            namespace=namespace,
+            request_id=request_id,
+            params=params,
+        )
+
+        # additional reflection logic
+        states = [EnvironmentHotpotQA.step(state, action) for action in actions]
+
+        reflection_coroutines = []
+        reflected_state_idxs = []
+        for i, s in enumerate(states):
+            if not EnvironmentHotpotQA.is_final(s):
+                continue
+
+            # found a successful state
+            if EnvironmentHotpotQA.evaluate(s)[1] == 1:
+                return [s]
+            
+            # if the state has failed, we need to reflect on it
+            reflection_coroutines.append(
+                AgentReflectHotpotQA.act(
+                    model=model,
+                    state=s,
+                    n=1,
+                    namespace=namespace,
+                    request_id=f"{request_id}-reflect-{i}",
+                    params=params,
+                )
+            )
+
+            reflected_state_idxs.append(i)
+        
+        if len(reflection_coroutines) == 0:
+            return states
+        
+        thoughts = await asyncio.gather(*reflection_coroutines)
+        
+        for i in reflected_state_idxs:
+            states[i] = StateHotpotQA(
+                puzzle=state.puzzle,
+                current_state=state.puzzle,
+                steps=[],
+                answer=state.answer,
+                docstore=state.docstore,
+                randomness=state.randomness,
+                reflections=[thoughts.pop(0)] + state.reflections,
+            )
+
+        return states
 
 
 # ---Helper functions---

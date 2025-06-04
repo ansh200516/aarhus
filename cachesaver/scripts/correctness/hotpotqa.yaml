@@ -1,3 +1,13 @@
+het_foa:
+  num_agents: 7
+  num_steps: 7
+  k: 1
+  backtrack: 0.5
+  resampling: "linear_filtered"
+  min_steps: 1
+  num_evaluations: 3
+  origin: 120
+
 foa:
   num_agents: 5
   num_steps: 6

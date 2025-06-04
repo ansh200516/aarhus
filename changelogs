@@ -1,0 +1,9 @@
+This file contains the significant code changes to the cachesaver library that should be documented for the future
+
+1. Prompt changes in HotPotQA (Ansh)
+2. Created class "StateReturningAgent" to indicate whether an agent returns actions or states
+3. Created "wrap_class_in_env" method: this wraps the "Agent" classes in a "StateReturningAgent" using the current env
+4. Diff bw het_foa and foa: het_foa works with states, not actions. ie, het_foa expects all of its agents to be derived from class "StateReturningAgents". It expects that agent.act(...) -> List[GameState].
+2. Changes in game states (needs to be done for all games):
+    1. Add "reflections: List[str]" to store relections in each state
+    2. 

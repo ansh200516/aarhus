@@ -396,15 +396,23 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
         prev_states = [state.puzzle]
         for step in state.steps:
             step = step.strip()
+
+            if "left: " not in step:
+                break
+
             action, next_state = step.split('(left: ')
             action = action.strip()
             next_state = next_state.strip(' )')
             prev_states.append(next_state)
             previous_trial += f"Action: {action}\nState: {next_state}\n"
 
+        input(previous_trial)
+
         prompt = prompts.reflect.format(
             previous_trial=previous_trial
         )
+
+        input(prompt)
 
         # call the model
         response = await model.request(
@@ -414,6 +422,8 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
             namespace=namespace,
             params=params
         )
+
+        input(response)
 
         # add the thought to the initial state and package that up as a new state
         response = response[0].strip()
@@ -432,6 +442,8 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
             randomness=state.randomness,
             context=state.context + f"\n{thought}\n",
         )
+
+        input(new_state)
         
         # return that state
         return new_state
@@ -526,7 +538,7 @@ class AgentTerminalReflexionGame24(StateReturningAgent):
             if state is not None:
                 continue
 
-            states[i] = reflected_states.pop()
+            states[i] = reflected_states.pop(0)
             
         return states
 
