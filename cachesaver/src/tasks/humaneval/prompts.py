@@ -131,7 +131,16 @@ Is this solution correct? Answer with a single word: Yes or No.
 '''
 
 
-reflect = """You are a {lang} programming assistant, who is helping the user to improve their code. You will be given a function implementation and a series of unit tests. Your goal is to write a few sentences to explain why your implementation is wrong as indicated by the tests. You will need this as a hint when you try again later. Only provide the few sentence description in your answer, not the implementation.":
+reflect = """You are an advanced {lang} programming agent that can improve based on self reflections. You will be given the previous implementation of a function. The task was, given a function signature and its docstring by the user write the full implementation (restate the function signature). You were unsuccessful in answering the question either because you reached the wrong answer, or you used up your set number of reasoning steps, or your actions were inefficient. In a few sentences, diagnose a possible reason for failure or inefficiency and devise a new, concise, high level plan that aims to mitigate the same failure. Use complete sentences.  You have been given a specific output format to follow. Strictly follow the output format.
+Output format:
+Diagnosis: <your diagnosis>
+Corrections required:
+<problem 1> <explanation> <solution>
+<problem 2> <explanation> <solution>
+...
+<problem n> <explanation> <solution>
+
+(END OF OUTPUT FORMAT)
 
 {examples}
 
@@ -139,7 +148,6 @@ reflect = """You are a {lang} programming assistant, who is helping the user to 
 
 Previous trial:
 function impl: {function_impl}
-failed tests: {failed_tests}
 Reflection:"""
 
 examples_reflect_py = [
@@ -163,12 +171,17 @@ def longest_subarray_with_sum_limit(nums: List[int], target: int) -> List[int]:
         right += 1
     return result
 ```
-failed tests: 
-assert longest_subarray_with_sum_limit([5, 6, 7, 8, 9], 4) == [] # output: [5]
 
-reflection:
-The implementation failed the where no subarray fulfills the condition. The issue in the implementation is due to the use of >= instead of > in the condition to update the result. Because of this, it returns a subarray even when the sum is greater than the target, as it still updates the result when the current subarray length is equal to the previous longest subarray length. To overcome this error, we should change the condition to only update the result when the current subarray length is strictly greater than the previous longest subarray length. This can be done by replacing >= with > in the condition.''',
-'''Previous trial:
+Reflection:
+Diagnosis: The implementation fails to handle cases where no subarray fulfills the condition.
+
+Corrections required:
+1. Incorrect condition operator <explanation> The use of >= in the condition to update the result causes it to return a subarray even when the sum exceeds the target, since it updates when current length equals previous longest length <solution> Replace >= with > in the condition to only update when strictly greater
+2. Missing edge case handling <explanation> The implementation does not properly handle cases where no valid subarray exists <solution> Add a check to ensure the current_sum is within target before updating result
+'''
+
+'''
+Previous trial:
 function impl:
 ```python
 def longest_subarray_with_sum_limit(nums: List[int], target: int) -> List[int]:
@@ -191,14 +204,13 @@ def longest_subarray_with_sum_limit(nums: List[int], target: int) -> List[int]:
         right += 1
     return result
 ```
-failed tests:
-assert longest_subarray_with_sum_limit([1, 2, 3, 4, 5], 8) == [1, 2, 3] # output: list index out of range
-assert longest_subarray_with_sum_limit([1, 2, 3, 4, 5], 15) == [1, 2, 3, 4, 5] # output: list index out of range
-assert longest_subarray_with_sum_limit([5, 6, 7, 8, 9], 4) == [] # output: list index out of range
-assert longest_subarray_with_sum_limit([1, -1, 2, -2, 3, -3], 2) == [1, -1, 2, -2, 3] # output: list index out of range
 
-reflection:
-The implementation failed 4 out of the 7 test cases due to an IndexError. The issue stems from the while loop while current_sum + nums[right] <= target:, which directly accesses nums[right] without checking if right is within the bounds of the list. This results in a runtime error when right goes beyond the list length. To overcome this error, we need to add a bounds check for the right variable in the mentioned while loop. We can modify the loop condition to while right < len(nums) and current_sum + nums[right] <= target:. This change will ensure that we only access elements within the bounds of the list, thus avoiding the IndexError.
+Reflection:
+Diagnosis: The implementation fails to handle cases where the sum of the subarray exceeds the target.
+
+Corrections required:
+1. Incorrect condition operator <explanation> The use of <= in the condition to update the result causes it to return a subarray even when the sum exceeds the target, since it updates when current length equals previous longest length <solution> Replace <= with < in the condition to only update when strictly less
+2. Missing edge case handling <explanation> The implementation does not properly handle cases where no valid subarray exists <solution> Add a check to ensure the current_sum is within target before updating result
 ''',
 '''Previous trial:
 function impl:
@@ -210,12 +222,12 @@ def add(a: int, b: int) -> int:
     return a - b
 ```
 
-failed tests:
-assert add(1, 2) == 3 # output: -1
-assert add(1, 2) == 4 # output: -1
+Reflection:
+Diagnosis: The implementation fails to handle cases where the input integers are 1 and 2.
 
-reflection:
-The implementation failed the test cases where the input integers are 1 and 2. The issue arises because the code does not add the two integers together, but instead subtracts the second integer from the first. To fix this issue, we should change the operator from `-` to `+` in the return statement. This will ensure that the function returns the correct output for the given input.''',
+Corrections required:
+1. Incorrect operator <explanation> The use of - in the return statement causes the function to subtract the second integer from the first <solution> Change the operator from - to + in the return statement
+''',
 
 '''Previous trial:
 function impl:
@@ -261,16 +273,12 @@ def fullJustify(words: List[str], maxWidth: int) -> List[str]:
     return res
 ```
 
-failed tests:
-assert fullJustify([], 10) == [] # output: ['          ']
-assert fullJustify([], 0) == [] # output: ['']
+Reflection:
+Diagnosis: The implementation fails to handle cases where the input list of words is empty.
 
-reflection:
-The implementation failed the test cases where the input list of words is empty. The issue arises because the code does not handle the case where there are no words to process. As a result, it still appends a line with spaces to the result list, even when there are no words. To fix this issue, we should add a condition at the beginning of the function to check if the input list is empty, and return an empty list if it is. This will ensure that the function returns the correct output for empty input lists.
-END EXAMPLES
-
+Corrections required:
+1. Missing edge case handling <explanation> The implementation does not properly handle cases where no valid subarray exists <solution> Add a check to ensure the current_sum is within target before updating result
 '''
-
 ]
 
 
@@ -286,12 +294,11 @@ fn add(a: i32, b: i32) -> i32 {
 }
 ```
 
-failed tests:
-assert_eq!(add(1, 2), 3); // output: -1
-assert_eq!(add(1, 2), 4); // output: -1
+Reflection
+Diagnosis: The implementation fails to handle cases where the input integers are 1 and 2.
 
-reflection:
-The implementation failed the test cases where the input integers are 1 and 2. The issue arises because the code does not add the two integers together, but instead subtracts the second integer from the first. To fix this issue, we should change the operator from `-` to `+` in the return statement. This will ensure that the function returns the correct output for the given input.
+Corrections required:
+1. Incorrect operator <explanation> The use of - in the return statement causes the function to subtract the second integer from the first <solution> Change the operator from - to + in the return statement
 ''',
 
 '''Previous trial:
@@ -325,14 +332,11 @@ pub fn group_anagrams(strs: Vec<String>) -> Vec<Vec<String>> {
 }
 ```
 
-failed tests:
-assert_eq!(func(vec![""]), vec![vec![""]]);
-assert_eq!(func(vec!["a"]), vec![vec!["a"]]);
-assert_eq!(func(vec!["eat", "tea", "tan", "ate", "nat", "bat"]), vec![vec!["bat"], vec!["nat", "tan"], vec!["ate", "eat", "tea"]]); # output:  [["bat", "tan", "nat"], ["eat", "tea", "ate"]]
+Reflection:
+Diagnosis: The implementation fails to group the anagrams together correctly.
 
-reflection:
-The implementation failed to group the anagrams together correctly. Instead, it grouped words by their length, which is not the intended behavior. The issue lies in using the length of the input strings (str.len()) as the key for the hashmap, rather than the count of each character in the strings (chars). To overcome this error, I should change the hashmap key to the character count array (chars). This will ensure that words with the same character counts (anagrams) are grouped together, which is the desired output. Next time I approach the problem, I will make sure to use the correct hashmap key to group the anagrams.
-
+Corrections required:
+1. Incorrect hashmap key <explanation> The implementation uses the length of the input strings (str.len()) as the key for the hashmap, rather than the count of each character in the strings (chars) <solution> Change the hashmap key to the character count array (chars)
 ''',
 '''Previous trial:
 function impl:
@@ -343,12 +347,11 @@ fn reverse_string(s: &str) -> String {
 }
 ```
 
-failed tests:
-assert_eq!(reverse_string("hello"), "olleh");
-assert_eq!(reverse_string("résumé"), "émuser"); // output:sumr or similar due to invalid UTF-8
+Reflection:
+Diagnosis: The implementation fails to handle strings with multi-byte UTF-8 characters.
 
-reflection:
-The implementation attempts to reverse the string by reversing its underlying bytes. While this works for ASCII strings where each character is a single byte, it fails for strings containing multi-byte UTF-8 characters like 'é' and 'ü'. Reversing the bytes of such characters results in invalid UTF-8 sequences, leading to incorrect characters or replacement characters () in the output. The correct approach is to reverse the sequence of Unicode scalar values (chars) rather than bytes. This can be achieved by calling `.chars().rev().collect()` on the string slice.
+Corrections required:
+1. Incorrect string reversal <explanation> The implementation reverses the string by reversing its underlying bytes, which fails for strings containing multi-byte UTF-8 characters like 'é' and 'ü' <solution> Reverse the sequence of Unicode scalar values (chars) rather than bytes by calling `.chars().rev().collect()` on the string slice
 ''',
 '''Previous trial:
 function impl:
@@ -369,15 +372,11 @@ fn fibonacci(n: u32) -> u32 {
 }
 ```
 
-failed tests:
-assert_eq!(fibonacci(0), 0);
-assert_eq!(fibonacci(1), 1);
-assert_eq!(fibonacci(2), 1);
-assert_eq!(fibonacci(3), 2); // output: 1
-assert_eq!(fibonacci(5), 5); // output: 3
+Reflection:
+Diagnosis: The implementation fails to handle cases where the input integer is 2.
 
-reflection:
-The current Fibonacci implementation incorrectly calculates the Nth number for `n >= 2` due to an off-by-one error in the loop logic. The loop `for _ in 2..n` iterates from 2 up to `n-1`. If `n` is 2, the loop doesn't run, and `b` (which is 1, the 1st Fibonacci number) is returned. If `n` is 3, the loop runs once (for `_ = 2`), `b` becomes `0+1=1` (still the 1st Fibonacci), which is incorrect for F(3). To compute the Nth Fibonacci number, the loop should effectively run `n-1` times after establishing F(0) and F(1). A common fix is to loop `for _ in 2..=n` or adjust the initial values/return value. For instance, returning `a` if `n=0` and `b` otherwise after the loop `for _ in 0..n-1 { ... }` (with `a=0, b=1` initially for n>0) or ensuring the loop iterates correctly to compute up to the Nth term.
+Corrections required:
+1. Incorrect loop bounds <explanation> The loop `for _ in 2..n` iterates from 2 up to `n-1`. If `n` is 2, the loop doesn't run, and `b` (which is 1, the 1st Fibonacci number) is returned. If `n` is 3, the loop runs once (for `_ = 2`), `b` becomes `0+1=1` (still the 1st Fibonacci), which is incorrect for F(3). To compute the Nth Fibonacci number, the loop should effectively run `n-1` times after establishing F(0) and F(1). A common fix is to loop `for _ in 2..=n` or adjust the initial values/return value. For instance, returning `a` if `n=0` and `b` otherwise after the loop `for _ in 0..n-1 { ... }` (with `a=0, b=1` initially for n>0) or ensuring the loop iterates correctly to compute up to the Nth term. <solution> Loop `for _ in 2..=n` or adjust the initial values/return value. For instance, returning `a` if `n=0` and `b` otherwise after the loop `for _ in 0..n-1 { ... }` (with `a=0, b=1` initially for n>0) or ensuring the loop iterates correctly to compute up to the Nth term.
 '''
 ]
 
