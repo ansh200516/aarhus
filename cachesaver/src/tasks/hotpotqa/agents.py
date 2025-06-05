@@ -569,7 +569,7 @@ class AgentValueReduceReflectHotpotQA(StateReturningAgent, ValueFunctionRequirin
             old_state_with_thought.reflections.insert(0, thoughts.pop(0))
 
             # TODO: Adjust the value of the state after reflection
-            new_value = state.value + 0.5 # small increase in value for reflection
+            new_value = state.value # small increase in value for reflection
             new_states.append(replace(old_state_with_thought, value=new_value))
 
         return new_states

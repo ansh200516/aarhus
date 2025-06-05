@@ -9,17 +9,22 @@ from diskcache import Cache
 from openai import AsyncOpenAI
 from omegaconf import OmegaConf
 from together import AsyncTogether
-from cachesaver.pipelines import OnlineAPI
+from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
+
 
 import sys
 sys.path.append(os.getcwd())
-
+from cachesaver.pipelines import OnlineAPI
 from src.utils import tokens2cost, clean_log
 from src.algorithms import *
 from src.models import OnlineLLM, API
 from src.typedefs import DecodingParameters
 from src.tasks.scibench import *
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 
 def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
 # Setup the method
@@ -43,6 +48,46 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             min_steps=config.foa.min_steps,
             num_evaluations=config.foa.num_evaluations,
         )
+    elif method_name == "het_foa":
+        step_agents = []
+
+        # build the fleet of agents here
+        step_agents.append({
+            "agent": AgentValueReduceReflectSciBench,
+            "params": params,
+            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
+        })
+
+        step_agents.append({
+            "agent": AgentActSciBench,
+            "params": params,
+            "num_agents": config.het_foa.num_agents // 2,
+        })
+
+        agents = AgentDictHeterogenousFOA(
+            evaluate=AgentEvaluateSciBench,
+            eval_params=params,
+            step_agents=step_agents
+        )
+        
+        logger.info(f"Using these agents for Heterogenous FOA:")
+        for i in range(len(agents["step_agents"])):
+            logger.info(f"{step_agents[i]['agent'].__name__} ({agents['step_agents'][i]['num_agents']}): Temperature: {agents['step_agents'][i]['params'].temperature}, Top P: {agents['step_agents'][i]['params'].top_p}")
+
+        method = AlgorithmHeterogenousFOA(
+            model=api,
+            agents=agents,
+            env=EnvironmentSciBench,
+            num_agents=config.het_foa.num_agents,
+            num_steps=config.het_foa.num_steps,
+            k=config.het_foa.k,
+            backtrack=config.het_foa.backtrack,
+            resampling=config.het_foa.resampling,
+            origin=config.het_foa.origin,
+            min_steps=config.het_foa.min_steps,
+            num_evaluations=config.het_foa.num_evaluations,
+        )
+        
     elif method_name == "tot_bfs":
         agents = AgentDictTOT(
             step=AgentBfsSciBench,
@@ -58,7 +103,7 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             num_steps=config.tot_bfs.num_steps,
             num_evaluations=config.tot_bfs.num_evaluations,
         )
-    if args.method == "got":
+    elif method_name == "got":
         agents = AgentDictGOT(
             step=AgentActSciBench,
             aggregate=AgentAggregateSciBench,
@@ -77,7 +122,7 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             num_best=config.got.num_best,
             num_evaluations=config.got.num_evaluations,
         )
-    elif args.method == "react":
+    elif method_name == "react":
         agents = AgentDictReact(
             step=AgentReactSciBench,
             step_params=params,
@@ -99,7 +144,7 @@ async def run(args, trial, cache_path):
 
     # LLM Provider
     if args.provider == "openai":
-        client = AsyncOpenAI()
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
     elif args.provider == "together":
         client = AsyncTogether()
     elif args.provider == "local":
@@ -202,19 +247,20 @@ async def run(args, trial, cache_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Solve Game 24 using LLMs.")
-    parser.add_argument("--provider", type=str, help="LLM provider")
-    parser.add_argument("--model", type=str, help="LLM model")
-    parser.add_argument("--batch_size", type=int, help="CacheSaver's batch size")
-    parser.add_argument("--timeout", type=float, help="CacheSaver's timeout")
-    parser.add_argument("--temperature", type=float, help="Temperature for the model")
+    parser.add_argument("--provider", type=str,default="openai", help="LLM provider")
+    parser.add_argument("--base_url", type=str,default=None, help="Base URL for the API")
+    parser.add_argument("--model", type=str,default="gpt-4.1-nano", help="LLM model")
+    parser.add_argument("--batch_size", type=int,default=15, help="CacheSaver's batch size")
+    parser.add_argument("--timeout", type=float, default=1,help="CacheSaver's timeout")
+    parser.add_argument("--temperature", type=float,default=0.7, help="Temperature for the model")
     parser.add_argument("--max_completion_tokens", type=int, help="Max completion tokens")
-    parser.add_argument("--top_p", type=float, help="Top P for the model")
+    parser.add_argument("--top_p", type=float,default=1, help="Top P for the model")
     parser.add_argument("--stop", type=str, nargs="+", help="Stop sequence for the model")
     parser.add_argument("--logprobs", action="store_true", help="Logprobs for the model")
-    parser.add_argument("--dataset_path", type=str, help="Path to the dataset")
-    parser.add_argument("--split", type=str, help="Split of the dataset")
-    parser.add_argument("--method", type=str, help="Method to use")
-    parser.add_argument("--conf_path", type=str, help="Path to corresponding config")
+    parser.add_argument("--dataset_path",default="./datasets/dataset_scibench.csv.gz" ,type=str, help="Path to the dataset")
+    parser.add_argument("--split", type=str,default="single", help="Split of the dataset")
+    parser.add_argument("--method", type=str,default="foa", help="Method to use")
+    parser.add_argument("--conf_path", type=str, default="./scripts/frameworks/scibench/scibench.yaml",help="Path to corresponding config")
     parser.add_argument("--value_cache", action="store_true", help="Use value cache")
     parser.add_argument("--correctness", type=int, help="Use original ('correct') implementation")
     parser.add_argument("--task", type=str, help="Task to run", default="chemmc")

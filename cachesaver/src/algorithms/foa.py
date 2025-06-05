@@ -2,7 +2,7 @@ import random
 import logging
 import asyncio
 from typing import TypedDict
-from ..typedefs import Algorithm, Model, Agent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
+from ..typedefs import Algorithm, Model, Agent, Environment, DecodingParameters, State, Benchmark, MAX_SEED, StateReturningAgent
 from ..utils import Resampler
 logger = logging.getLogger(__name__)
 
@@ -11,6 +11,14 @@ class AgentDictFOA(TypedDict):
     evaluate: Agent # EvaluateAgent
     step_params: DecodingParameters
     eval_params: DecodingParameters
+    
+def wrap_agent_in_env(agent_class, env):
+    class WrappedAgent(agent_class, StateReturningAgent):
+        @staticmethod
+        async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
+            actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)
+            new_states = [env.step(state, action) for action in actions]
+            return new_states
 
 class AlgorithmFOA(Algorithm):
     def __init__(self, 

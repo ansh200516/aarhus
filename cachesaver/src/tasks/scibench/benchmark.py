@@ -22,7 +22,8 @@ class BenchmarkSciBench(Benchmark):
         # Calculate split sizes
         single_instance = data.pop(0)
         total = len(data)
-        mini = round(total * 0.05)
+        # mini = round(total * 0.05)
+        mini = 2
         train = round(total * 0.10)
         valid = round(total * 0.15)
         
