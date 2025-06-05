@@ -51,11 +51,28 @@ class AgentActSciBench(Agent):
             namespace=namespace,
             params=params,
         )
+        
+        for r in responses:
+            print(r)
+            print("---")
 
         # Parse the response
-        proposals = [r.strip().split("\n")[:5] for r in responses]
-        proposals = [parse_proposal(r, state.step_n, existing_steps) for r in proposals]
-        return proposals
+        # proposals = [r.strip().split("\n")[:5] for r in responses]
+        # proposals = [parse_proposal(r, state.step_n, existing_steps) for r in proposals]
+        # return proposals
+        # patterns = r"(\b\w+)\s*(\[[^\]]*\])"
+        # proposals = []
+        # for response_text in responses:
+        #     matches = re.findall(patterns, response_text)
+        #     for match_tuple in matches:
+        #         if match_tuple: # ensure match is not empty
+        #             proposals.extend(join_matches(match_tuple)) # join_matches definition unavailable
+        
+        # New simpler parsing:
+        # Treat each non-empty, stripped response string as a potential proposal.
+        proposals = [r.strip() for r in responses if r.strip()]
+        
+        return proposals 
 
 
 class AgentReactSciBench(Agent):
@@ -235,7 +252,8 @@ class AgentEvaluateSciBench(Agent):
                 prompt_template=prompts.evaluate_with_reflect
                 current_prompt=prompt_template.format(
                     reflections=reflection_str,
-                    problem=state.puzzle, existing_steps=existing_steps
+                    problem=state.puzzle, existing_steps=existing_steps,
+                    examples=examples,
                 )
             else:
                 current_prompt = prompts.evaluate.format(
@@ -526,3 +544,23 @@ def parse_value(response: str, low=0.0, high=1.0) -> float:
     except Exception as e:
         out_value = low
     return out_value
+
+def join_matches(matches) -> List[str]:
+    """
+    Joins matched strings from a regex search into a single string.
+    """
+    if not matches: # Handle empty matches
+        return []
+    
+    if isinstance(matches, tuple) and all(isinstance(m, str) for m in matches): # A single match tuple
+        return ["".join(matches)]
+    
+    elif isinstance(matches, list) and all(isinstance(item, tuple) for item in matches):
+        return ["".join(match_tuple) for match_tuple in matches]
+    
+    if isinstance(matches, tuple) and all(isinstance(s, str) for s in matches):
+        return ["".join(matches)]
+    
+    if isinstance(matches[0], str):
+        matches = [matches]
+    return ["".join(match) for match in matches]

@@ -9,8 +9,9 @@ from diskcache import Cache
 from openai import AsyncOpenAI
 from omegaconf import OmegaConf
 from together import AsyncTogether
-
+from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
+
 
 import sys
 sys.path.append(os.getcwd())
@@ -20,6 +21,10 @@ from src.algorithms import *
 from src.models import OnlineLLM, API
 from src.typedefs import DecodingParameters
 from src.tasks.scibench import *
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 
 def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
 # Setup the method
@@ -54,7 +59,7 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
         })
 
         step_agents.append({
-            "agent": AgentReactSciBench,
+            "agent": AgentActSciBench,
             "params": params,
             "num_agents": config.het_foa.num_agents // 2,
         })
@@ -139,7 +144,7 @@ async def run(args, trial, cache_path):
 
     # LLM Provider
     if args.provider == "openai":
-        client = AsyncOpenAI()
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
     elif args.provider == "together":
         client = AsyncTogether()
     elif args.provider == "local":
