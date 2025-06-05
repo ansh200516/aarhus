@@ -10,6 +10,7 @@ import random
 # these will be given by the user
 logs = ''
 state_names = {}
+states_done_in_puzzle = {}
 state_colors = {}
 
 class State(BaseModel):
@@ -54,13 +55,6 @@ def generate_distinct_hex_colors(n):
 def load_logs() -> str:
     with open(f"logs/het_foa_logs.log", 'r') as f:
         logs = f.read()
-        logs = logs.strip()
-        logs = logs.split('\n')
-        last_idx = 0
-        for i, log in enumerate(logs):
-            if '-fleet:' in log:
-                last_idx = i
-        logs = '\n'.join(logs[last_idx:])
     return logs
 
 
@@ -88,13 +82,20 @@ def get_py_list(string, type):
 
 
 def get_fleet(log):
-    return get_py_list(log.split('fleet: ')[-1].strip(), str)
+    log = log.replace('ValueFunctionWrapped', '').replace('EnvWrapped', '')
+    isolated_list = log.split('fleet: ')[-1].strip()
+    return get_py_list(isolated_list, str)
 
 
-def state_name(current_state: str):
+def state_name(current_state: str, index):
     if hash(current_state) in state_names:
         return state_names[hash(current_state)]
     
+    if index not in states_done_in_puzzle:
+        states_done_in_puzzle[index] = 1
+    states_done_in_puzzle[index] += 1
+    
+    idx = states_done_in_puzzle[index]
     idx = len(state_names)
     state_names[hash(current_state)] = f's{idx}'
     return state_names[hash(current_state)]
@@ -110,7 +111,9 @@ def get_state_color(state_name: str):
 
 
 def get_states_from_log(log):
-    states = get_py_list('['+'['.join(log.split('[')[1:]).strip(), str)
+    index = get_puzzle_idx(log)
+    isolated_list = log[log.find('['):]
+    states = get_py_list(isolated_list, str)
     
     for i, state in enumerate(states):
         # load python dict from string
@@ -123,8 +126,8 @@ def get_states_from_log(log):
 
     for i, state in enumerate(states):
         states[i] = State(
-            name=state_name(state['current_state']),
-            color=get_state_color(state_name(state['current_state'])),
+            name=state_name(state['current_state'], index),
+            color=get_state_color(state_name(state['current_state'], index)),
             num_thoughts=len(state['reflections']),
             value=state['value'],
             serial_data=state
@@ -136,23 +139,25 @@ def get_states_from_log(log):
 
 
 def get_timestep_object(logs, timestep=0):
-    assert len(logs) == 6, f'Expected 6 logs for a timestep, got {len(logs)}: {logs}'
+    # assert len(logs) == 6, f'Expected 6 logs for a timestep, got {len(logs)}: {logs}'
 
     assert re.search(r'het_foa_logs-\d+-\d+-agentinputs', logs[0]), f'First log does not match expected format: {logs[0]}'
     assert re.search(r'het_foa_logs-\d+-\d+-agentouts', logs[1]), f'Second log does not match expected format: {logs[1]}'
     assert re.search(r'het_foa_logs-\d+-\d+-statewins', logs[2]), f'Third log does not match expected format: {logs[2]}'
-    assert re.search(r'het_foa_logs-\d+-\d+-statefails', logs[3]), f'4th log does not match expected format: {logs[3]}'
-    assert re.search(r'het_foa_logs-\d+-\d+-agentreplacements', logs[4]), f'5th log does not match expected format: {logs[4]}'
-    assert re.search(r'het_foa_logs-\d+-\d+-values', logs[5]), f'6th log does not match expected format: {logs[5]}'
+    if len(logs) > 3: assert re.search(r'het_foa_logs-\d+-\d+-statefails', logs[3]), f'4th log does not match expected format: {logs[3]}'
+    if len(logs) > 4: assert re.search(r'het_foa_logs-\d+-\d+-agentreplacements', logs[4]), f'5th log does not match expected format: {logs[4]}'
+    if len(logs) > 5: assert re.search(r'het_foa_logs-\d+-\d+-values', logs[5]), f'6th log does not match expected format: {logs[5]}'
+
+    win_list = get_py_list(logs[2].split('statewins: ')[-1].strip(), bool)
 
     return Timestep(
         timestep=timestep,
         input_states=get_states_from_log(logs[0]),
         agent_output_states=get_states_from_log(logs[1]),
-        state_wins=get_py_list(logs[2].split('statewins: ')[-1].strip(), bool),
-        state_fails=get_py_list(logs[3].split('statefails: ')[-1].strip(), bool),
-        replacement_states=get_states_from_log(logs[4]),
-        values=get_py_list(logs[5].split('values: ')[-1].strip(), float)
+        state_wins=win_list,
+        state_fails=get_py_list(logs[3].split('statefails: ')[-1].strip(), bool) if len(logs) > 3 else [False] * len(win_list),
+        replacement_states=get_states_from_log(logs[4]) if len(logs) > 4 else [],
+        values=get_py_list(logs[5].split('values: ')[-1].strip(), float) if len(logs) > 5 else None
     )
 
 
@@ -184,11 +189,11 @@ het_foa_logs = []
 fleet = []
 for log in logs:
     if 'het_foa_logs' in log:
-        if 'fleet' in log:
+        if '-fleet:' in log:
             if len(fleet) == 0:
                 fleet = get_fleet(log)
             else:
-                assert fleet == get_fleet(log), f'Fleet mismatch in log: {log}'
+                assert fleet == get_fleet(log), f'Fleet mismatch in log: {log} and {fleet=}'
         else:
             het_foa_logs.append('het_foa_logs: ' + log.split('het_foa_logs: ')[-1].strip())
 
@@ -417,4 +422,4 @@ def create_agent_diagrams(diagrams_data: List[dict], spacing: int = 50) -> Image
 
 for puzzle_idx, flow in flows.items():
     img = create_agent_diagrams(flow)
-    img.save('tmp/pic.png', format='PNG')
+    img.save(f'tmp/pic_{puzzle_idx}.png', format='PNG')

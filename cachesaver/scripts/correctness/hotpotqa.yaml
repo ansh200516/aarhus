@@ -1,6 +1,6 @@
 het_foa:
   num_agents: 3
-  num_steps: 10
+  num_steps: 6
   k: 1
   backtrack: 0.5
   resampling: "linear_filtered"
