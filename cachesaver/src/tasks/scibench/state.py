@@ -23,8 +23,14 @@ class StateSciBench(State):
     # The number of steps taken so far
     step_n: int = 0
 
+    # The current evaluated value of the state
+    value: float = 0.0
+
     # The value that the state had at its last evaluation
     values: Dict = field(default_factory=dict)
+
+    # A list to store all reflections made during the process
+    reflections: List[str] = field(default_factory=list)
 
     def serialize(self) -> dict:
         """
@@ -45,8 +51,11 @@ class StateSciBench(State):
             steps=self.steps,
             answer=self.answer,
             step_n=self.step_n,
+            value=self.value,
             values=self.values,
-            randomness=randomness or self.randomness)
+            randomness=randomness or self.randomness,
+            reflections=self.reflections
+        )
     
     def get_seed(self) -> int:
         """

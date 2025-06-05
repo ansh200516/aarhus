@@ -22,3 +22,19 @@ got:
 
 react:
   num_steps: 10
+
+het_foa:
+  num_agents: 7
+  num_steps: 7
+  k: 1
+  backtrack: 0.5
+  resampling: "linear_filtered"
+  min_steps: 1
+  num_evaluations: 3
+  origin: 30
+  
+rap:
+  num_iterations: 10
+  num_samples: 5
+  num_evaluations: 3
+  exploration_constant: 1.0
