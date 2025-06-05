@@ -40,6 +40,7 @@ class StateHotpotQA(State):
             "current_state": self.current_state,
             "steps": " -> ".join(self.steps),
             "reflections": self.reflections,
+            "value": self.value,
         }
     
     def clone(self, randomness: int = None, new_reflection: Optional[str] = None, reset_reflections: bool = False, reset_trajectory: bool = False) -> "StateHotpotQA":

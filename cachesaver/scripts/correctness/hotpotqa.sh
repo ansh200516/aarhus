@@ -13,7 +13,7 @@ model="gpt-4.1-nano"
 
 # Define number of retrials
 retrials=1
-split="mini"
+split="single"
 
 # Delete caches if they exist
 for method in "${methods[@]}"; do

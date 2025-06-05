@@ -29,7 +29,8 @@ class StateGame24(State):
         return {
             "reflections": self.reflections,
             "current_state": self.current_state,
-            "steps": " -> ".join(self.steps)
+            "steps": " -> ".join(self.steps),
+            "value": self.value,
         }
     
     def clone(self, randomness: int=None) -> "StateGame24":

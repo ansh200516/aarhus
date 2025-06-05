@@ -4,9 +4,13 @@ import asyncio
 from typing import TypedDict, Optional
 from dataclasses import replace
 from ..typedefs import Algorithm, Model, AgentDict, Agent, StateReturningAgent, ValueFunctionRequiringAgent, ValueFunctionUsingAgent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
-from ..utils import Resampler
-logger = logging.getLogger(__name__)
+from ..utils import *
 
+logger = logging.getLogger('het_foa_logger')
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler('logs/het_foa_logs.log')
+handler.setLevel(logging.INFO)
+logger.addHandler(handler)
 
 DEBUG = False  # Set to True to enable debug prints
 
@@ -138,6 +142,9 @@ class AlgorithmHeterogenousFOA(Algorithm):
         state = replace(state, value=self.origin*self.backtrack)
 
 
+        # log all agents
+        logger.info(f'het_foa_logs-{idx}-fleet: {log_agents(self.step_agents)}')
+
         print('initial problem state:')
         print(state.puzzle)
 
@@ -166,6 +173,9 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 print(f'Problem ({idx}) solved at step {step}')
                 break
 
+
+            logger.info(f"het_foa_logs-{idx}-{step}-agentinputs: {log_states(states)}")
+
             # Generate actions for each state
             agent_coroutines = [
                 self._get_ith_agent_dict(i)['agent'].act(
@@ -182,6 +192,10 @@ class AlgorithmHeterogenousFOA(Algorithm):
             states = []
             for agent_states in agent_responses:
                 states.extend(agent_states)
+            
+
+            logger.info(f"het_foa_logs-{idx}-{step}-agentouts: {log_states(states)}")
+            logger.info(f"het_foa_logs-{idx}-{step}-statewins: {[self.env.evaluate(s)[1] == 1 for s in states]}")
 
             # Early stop in case any state is solved
             if any(self.env.evaluate(state)[1] == 1 for state in states):
@@ -196,11 +210,17 @@ class AlgorithmHeterogenousFOA(Algorithm):
 
             # Pruning : Failed = Finished not correctly
             failed = [i for i, state in enumerate(states) if self.env.is_final(state)]
+
+            logger.info(f"het_foa_logs-{idx}-{step}-statefails: {[self.env.is_final(s) for s in states]}")
+
             if visited_states != []:
                 replacements, _ = resampler.resample(visited_states.copy(), len(failed), self.resampling)
             else:
                 replacements, _ = resampler.resample([("", 1, state) for state in states], len(failed), resampling_method="linear")
             states = [replacements.pop(0) if i in failed else state for i, state in enumerate(states)]
+
+
+            logger.info(f'het_foa_logs-{idx}-{step}-agentreplacements: {log_states(states)}')
 
             # Evaluation phase
             if step < self.num_steps-1 and self.k and step % self.k == 0:
@@ -221,6 +241,8 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 values = await asyncio.gather(*value_coroutines)
 
                 # Update previously visited states records
+                logger.info(f'het_foa_logs-{idx}-{step}-values: {values}')
+                
                 for i, value in enumerate(values):
                     states[i] = replace(states[i], value=value)
 

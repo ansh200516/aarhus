@@ -35,13 +35,10 @@ class StateHumanEval(State):
         Returns a dictionary representation of the state.
         """
         return {
-            "puzzle": self.puzzle,
             "current_state": self.current_state,
-            # "steps": " -> ".join(self.steps),
-            # "entry_point": self.entry_point,
-            # "test": self.test,
-            # "randomness": self.randomness,
+            "steps": " -> ".join(self.steps),
             "reflections": self.reflections,
+            "value": self.value,
         }
     
     def clone(self, randomness: int=None) -> "StateHumanEval":

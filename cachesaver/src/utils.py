@@ -2,6 +2,7 @@ import re
 import random
 from typing import List
 import numpy as np 
+import json
 
 def assign_ns(length: int, fraction: float) -> List[int]:
     """
@@ -178,3 +179,36 @@ class Resampler:
         threshold = np.percentile(values, percentile)
         values = [value if value >= threshold else 0 for value in values]
         return Resampler.linear(values)
+    
+
+
+
+# SHOAN's UTILS for HET-FOA
+
+def log_state(state) -> str:
+    '''
+
+    important stuff in a state:
+    current state
+    steps?
+    reflections
+    value
+
+    '''
+    return json.dumps(state.serialize())
+
+def log_states(states) -> str:
+    '''
+    states is a list of states
+    '''
+    
+    return str([log_state(s) for s in states])
+
+
+def log_agents(step_agents):
+    agents = []
+    for agent in step_agents:
+        for _ in range(agent['num_agents']):
+            agents.append(agent['agent'].__name__)
+    
+    return str(agents)
