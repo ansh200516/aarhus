@@ -8,6 +8,9 @@ from ..utils import Resampler
 logger = logging.getLogger(__name__)
 
 
+DEBUG = False  # Set to True to enable debug prints
+
+
 class AgentDictHeterogenousFOA(TypedDict):
     evaluate: Agent
     eval_params: DecodingParameters
@@ -68,6 +71,14 @@ class AlgorithmHeterogenousFOA(Algorithm):
             async def act(model: Model, state: State, n: int, namespace: str, request_id: str, params: DecodingParameters):
                 actions = await agent_class.act(model=model, state=state, n=n, namespace=namespace, request_id=request_id, params=params)
                 new_states = [self.env.step(state, action) for action in actions]
+
+                # TODO: REMOVE
+                if DEBUG:
+                    print('states returned by react agent:')
+                    for s in new_states:
+                        print(f"State {hash(s)}: steps={len(s.steps)}, value={s.value}, reflections={len(s.reflections)}")
+                    input()
+
                 return new_states
         
         EnvWrappedAgent.__name__ = f"EnvWrapped{agent_class.__name__}"
@@ -145,7 +156,14 @@ class AlgorithmHeterogenousFOA(Algorithm):
         for step in range(self.num_steps):
             print(f"Step {step} ({idx})")
 
+            if DEBUG:
+                print(f"Current resampled states:")
+                for i, s in enumerate(states):
+                    print(f"State {hash(s)}: steps={len(s.steps)}, value={s.value}, reflections={len(s.reflections)}")
+                input()
+
             if solved:
+                print(f'Problem ({idx}) solved at step {step}')
                 break
 
             # Generate actions for each state
@@ -168,6 +186,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
             # Early stop in case any state is solved
             if any(self.env.evaluate(state)[1] == 1 for state in states):
                 solved = True
+                print(f'Problem ({idx}) solved at step {step+1}')
                 break
 
             # Filter previously visited states records
@@ -204,6 +223,11 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 # Update previously visited states records
                 for i, value in enumerate(values):
                     states[i] = replace(states[i], value=value)
+
+                    # TODO: REMOVE
+                    if DEBUG:
+                        print(f'value assigned to state {hash(states[i])}: {value}')
+
                     if i not in failed:
                         visited_states.append((f"{i}.{step}", value, states[i]))
 

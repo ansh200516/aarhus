@@ -1,36 +1,34 @@
 het_foa:
-  num_agents: 3
-  num_steps: 6
+  num_agents: 2
+  num_steps: 4
   k: 1
   backtrack: 0.5
-  resampling: "linear_filtered"
+  resampling: "linear"
   min_steps: 1
   num_evaluations: 3
-  origin: 10
+  origin: 150
 
 foa:
-  num_agents: 5
-  num_steps: 6
+  num_agents: 4
+  num_steps: 4
   k: 1
   backtrack: 0.5
-  resampling: "linear_filtered"
+  resampling: "linear"
   min_steps: 1
   num_evaluations: 3
-  origin: 10
+  origin: 150
 
 tot_bfs:
-  num_selections: 2
-  num_steps: 4
-  num_evaluations: 1
-
-got:
-  num_selections: 3
-  num_steps: 5
+  num_selections: 5
+  num_steps: 3
   num_evaluations: 3
+  
+got:
+  num_selections: 2
+  num_steps: 1
+  num_generate: 5
+  num_evaluations: 1
   num_best: 2
-
-react:
-  num_steps: 12
 
 rap:
   num_iterations: 10

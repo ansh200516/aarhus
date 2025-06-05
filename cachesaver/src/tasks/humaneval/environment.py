@@ -33,15 +33,17 @@ class EnvironmentHumanEval(Environment):
         random.seed(state.randomness)
         randomness = random.randint(0, MAX_SEED)
 
-        state = StateHumanEval(
+        new_state = StateHumanEval(
             puzzle=state.puzzle,
             current_state=completion,
             steps=state.steps + [completion],
             entry_point=state.entry_point,
             test=state.test,
-            randomness=randomness
+            randomness=randomness,
+            reflections=state.reflections,
+            value=None
         )
-        return state
+        return new_state
 
     @staticmethod
     def is_valid(state: StateHumanEval, action: str) -> bool:
@@ -89,20 +91,16 @@ def evaluate_code_python(code: str, entry_point: str, test: str) -> Tuple[bool, 
     Evaluates the given code using the provided entry point and test.
     """
     manager = multiprocessing.Manager()
-    result = manager.list()
     ts = separate_tests(test)
-    for t in ts:
-        p = multiprocessing.Process(target=unsafe_execute, args=(code, entry_point, t, TIMEOUT, result))
+    result = manager.list([0 for _ in range(len(ts))])
+    for i, t in enumerate(ts):
+        p = multiprocessing.Process(target=unsafe_execute, args=(code, entry_point, t, TIMEOUT, result, i))
         p.start()
         p.join(timeout=TIMEOUT+1)
         if p.is_alive():
             p.kill()
 
-    if not result:
-        return False, 0.0
-    
-    else:
-        return True, sum(result) / len(result)
+    return True, sum(result) / len(result)#, list(result)
     
 def evaluate_code_rust(code: str, entry_point: str, test: str) -> Tuple[bool, float]:
     """
@@ -153,7 +151,7 @@ def separate_tests(test):
 
 #---Context Managers---#
 # From HumanEval repo for evaluating code with timelimit and a bit more securely. Still recommending to do it inside a sandbox.
-def unsafe_execute(code: str, entry_point: str, test: str, timeout: float, result):
+def unsafe_execute(code: str, entry_point: str, test: str, timeout: float, result, i):
     with create_tempdir():
         import os
         import shutil
@@ -176,9 +174,9 @@ def unsafe_execute(code: str, entry_point: str, test: str, timeout: float, resul
             with swallow_io():
                 with time_limit(timeout):
                     exec(program, exec_globals)
-            result.append(1)
+            result[i] = 1
         except Exception:
-            result.append(0)
+            result[i] = 0
 
         # Clean up
         shutil.rmtree = rmtree

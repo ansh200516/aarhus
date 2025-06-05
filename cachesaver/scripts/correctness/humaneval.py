@@ -14,12 +14,11 @@ logger = logging.getLogger(__name__)
 import sys
 sys.path.append(os.getcwd())
 from cachesaver.pipelines import OnlineAPI
-
 from src.utils import tokens2cost, clean_log
 from src.algorithms import *
 from src.models import OnlineLLM, API
 from src.typedefs import DecodingParameters
-from src.tasks.game24 import *
+from src.tasks.humaneval import *
 
 def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
     # Setup the method
@@ -28,19 +27,19 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
 
         # build the fleet of agents here
         step_agents.append({
-            "agent": AgentActGame24,
+            "agent": AgentReactHumanEval,
             "params": params,
             "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
         })
 
         step_agents.append({
-            "agent": AgentReactGame24,
+            "agent": AgentTerminalReflectHumanEval,
             "params": params,
             "num_agents": config.het_foa.num_agents // 2,
         })
         
         agents = AgentDictHeterogenousFOA(
-            evaluate=AgentEvaluateGame24,
+            evaluate=AgentEvaluateHumanEval,
             eval_params=params,
             step_agents=step_agents
         )
@@ -52,7 +51,7 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
         method = AlgorithmHeterogenousFOA(
             model=api,
             agents=agents,
-            env=EnvironmentGame24,
+            env=EnvironmentHumanEval,
             num_agents=config.het_foa.num_agents,
             num_steps=config.het_foa.num_steps,
             k=config.het_foa.k,
@@ -64,15 +63,15 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
         )
     elif method_name == "foa":
         agents = AgentDictFOA(
-            step=AgentActGame24,
-            evaluate=AgentEvaluateGame24,
+            step=AgentActHumanEval,
+            evaluate=AgentEvaluateHumanEval,
             step_params=params,
             eval_params=params,
         )
         method = AlgorithmFOA(
             model=api,
             agents=agents,
-            env=EnvironmentGame24,
+            env=EnvironmentHumanEval,
             num_agents=config.foa.num_agents,
             num_steps=config.foa.num_steps,
             k=config.foa.k,
@@ -84,24 +83,24 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
         )
     elif method_name == "tot_bfs":
         agents = AgentDictTOT(
-            step=AgentBfsGame24,
-            evaluate=AgentEvaluateGame24,
+            step=AgentBfsHumanEval,
+            evaluate=AgentEvaluateHumanEval,
             step_params=params,
             eval_params=params,
         )
         method = AlgorithmTOT(
             model=api,
             agents=agents,
-            env=EnvironmentGame24,
+            env=EnvironmentHumanEval,
             num_selections=config.tot_bfs.num_selections,
             num_steps=config.tot_bfs.num_steps,
             num_evaluations=config.tot_bfs.num_evaluations,
         )
-    elif args.method == "got":
+    elif method_name == "got":
         agents = AgentDictGOT(
-            step=AgentActGame24,
-            aggregate=AgentAggregateGame24,
-            evaluate=AgentEvaluateGame24,
+            step=AgentActHumanEval,
+            aggregate=AgentAggregateHumanEval,
+            evaluate=AgentEvaluateHumanEval,
             step_params=params,
             aggregate_params=params,
             eval_params=params,
@@ -109,41 +108,13 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
         method = AlgorithmGOT(
             model=api,
             agents=agents,
-            env=EnvironmentGame24,
+            env=EnvironmentHumanEval,
             num_selections=config.got.num_selections,
             num_steps=config.got.num_steps,
             num_generate=config.got.num_generate,
             num_best=config.got.num_best,
             num_evaluations=config.got.num_evaluations,
         )
-    elif args.method == "rap":
-        agents = AgentDictRAP(
-            step=AgentReactGame24,
-            evaluate=AgentSelfEvaluateGame24,
-            step_params=params,
-            eval_params=params,
-        )
-        method = AlgorithmRAP(
-            model=api,
-            agents=agents,
-            env=EnvironmentGame24,
-            num_iterations=config.rap.num_iterations,
-            num_samples=config.rap.num_samples,
-            num_evaluations=config.rap.num_evaluations,
-            exploration_constant=config.rap.exploration_constant,
-        )
-    elif args.method == "react":
-        agents = AgentDictReact(
-            step=AgentReactGame24,
-            step_params=params,
-        )
-        method = AlgorithmReact(
-            model=api,
-            agents=agents,
-            env=EnvironmentGame24,
-            num_steps=config.react.num_steps,
-        )
-
     else:
         raise NotImplementedError(f"Method {method_name} is not implemented yet.")
     return method
@@ -205,7 +176,7 @@ async def run(args, trial, cache_path):
     method = build_method(args.method, params, api, config)
 
     # Load the dataset
-    benchmark = BenchmarkGame24(path=args.dataset_path, split=args.split)
+    benchmark = BenchmarkHumanEval(path=args.dataset_path, split=args.split)
 
     # Run the method
     start = time.time()
@@ -219,7 +190,7 @@ async def run(args, trial, cache_path):
     finished = []
     correct = []
     for result in results:
-        evaluations = sorted([EnvironmentGame24.evaluate(state) for state in result], key=lambda x: x[1])
+        evaluations = sorted([EnvironmentHumanEval.evaluate(state) for state in result], key=lambda x: x[1])
         finished.append(False if len(evaluations) == 0 else evaluations[-1][0])
         correct.append(1.0 if len(evaluations) == 0 else evaluations[-1][1])
     perc_finished = sum(finished) / len(finished)
@@ -238,8 +209,6 @@ async def run(args, trial, cache_path):
         "max": np.max(list(api.reuse.values())),
         "min": np.min(list(api.reuse.values())),
         "median": np.median(list(api.reuse.values())),
-        "total" : np.sum(list(api.reuse.values())),
-        "num_unique": len(api.reuse),
     }
     run_time = end - start
     throughput = len(benchmark) / run_time
@@ -261,26 +230,26 @@ async def run(args, trial, cache_path):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Solve Game 24 using LLMs.")
-    parser.add_argument("--provider", type=str, help="LLM provider")
-    parser.add_argument("--base_url", type=str, help="Base URL for the API")
-    parser.add_argument("--model", type=str, help="LLM model")
-    parser.add_argument("--batch_size", type=int, help="CacheSaver's batch size")
-    parser.add_argument("--timeout", type=float, help="CacheSaver's timeout")
-    parser.add_argument("--temperature", type=float, help="Temperature for the model")
+    parser = argparse.ArgumentParser(description="Solve Human Eval using LLMs.")
+    parser.add_argument("--provider", type=str,default="openai", help="LLM provider")
+    parser.add_argument("--base_url", type=str,default=None, help="Base URL for the API")
+    parser.add_argument("--model", type=str,default="gpt-3.5-turbo", help="LLM model")
+    parser.add_argument("--batch_size", type=int,default=10, help="CacheSaver's batch size")
+    parser.add_argument("--timeout", type=float, default=1,help="CacheSaver's timeout")
+    parser.add_argument("--temperature", type=float,default=0.7, help="Temperature for the model")
     parser.add_argument("--max_completion_tokens", type=int, help="Max completion tokens")
-    parser.add_argument("--top_p", type=float, help="Top P for the model")
+    parser.add_argument("--top_p", type=float,default=1, help="Top P for the model")
     parser.add_argument("--stop", type=str, nargs="+", help="Stop sequence for the model")
     parser.add_argument("--logprobs", action="store_true", help="Logprobs for the model")
-    parser.add_argument("--dataset_path", type=str, help="Path to the dataset")
-    parser.add_argument("--split", type=str, help="Split of the dataset")
-    parser.add_argument("--method", type=str, help="Method to use")
-    parser.add_argument("--conf_path", type=str, help="Path to corresponding config")
+    parser.add_argument("--dataset_path",default="./datasets/dataset_humaneval.csv.gz" ,type=str, help="Path to the dataset")
+    parser.add_argument("--split", type=str,default="mini", help="Split of the dataset")
+    parser.add_argument("--method", type=str,default="foa", help="Method to use")
+    parser.add_argument("--conf_path", type=str, default="./scripts/frameworks/humaneval/humaneval.yaml",help="Path to corresponding config")
     parser.add_argument("--value_cache", action="store_true", help="Use value cache")
     parser.add_argument("--correctness", type=int, help="Use original ('correct') implementation")
     args = parser.parse_args()
 
-    filename = f"logs/correctness/{args.model.split('/')[-1]}/game24/{args.method}.log"
+    filename = f"logs/correctness/{args.model.split('/')[-1]}/humaneval/{args.method}.log"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     logging.basicConfig(level=logging.INFO, filename=filename, filemode="a")
     logger.info("#"*50)
@@ -293,12 +262,14 @@ if __name__ == "__main__":
         previous_trials = [int(num) for num in re.findall(r"Shared Namespace \(trial (\d+)\)", contents)]
         trial = max(previous_trials) + 1 if previous_trials else 1
         logger.info(f"Shared Namespace (trial {trial})")
-        cache_path = f"caches/correctness/{args.method}/sns_{trial}"
+        cache_path = f"caches/frameworks/{args.method}/sns_{trial}"
     else:
         previous_trials = [int(num) for num in re.findall(r"Shared Namespace and Batch \(trial (\d+)\)", contents)]
         trial = max(previous_trials) + 1 if previous_trials else 1
         logger.info(f"Shared Namespace and Batch (trial {trial})")
-        cache_path = f"caches/correctness/{args.method}/snsb_{trial}"
+        cache_path = f"caches/frameworks/humaneval"
+
+    logger.info(f"Dataset Split: {args.split}")
 
     asyncio.run(run(args, trial=trial, cache_path=cache_path))
     logger.info("\n"*3)

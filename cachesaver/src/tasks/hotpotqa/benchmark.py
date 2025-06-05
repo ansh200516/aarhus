@@ -44,6 +44,8 @@ class BenchmarkHotpotQA(Benchmark):
         # valid_idxs -= set(mini_set_idxs)
         
         mini_set_idxs = random.sample(list(valid_idxs), 15)
+        mini_set_idxs = random.sample(list(valid_idxs), 15)
+        mini_set_idxs = random.sample(list(valid_idxs), 30)
         valid_idxs -= set(mini_set_idxs)
 
         train_set_idxs = random.sample(list(valid_idxs), 50)
