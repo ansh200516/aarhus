@@ -39,7 +39,7 @@ def clean_log(file_path: str):
             if any(pattern.match(line_stripped) for pattern in patterns):
                 continue
             if line_stripped.startswith(("INFO:src.", "MCTS")):
-                continue
+                file.write(line)
             elif line_stripped.startswith("INFO:__main__:") or line_stripped=="":
                 file.write(line)
             else:
