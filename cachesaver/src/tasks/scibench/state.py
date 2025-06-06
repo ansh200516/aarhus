@@ -3,6 +3,21 @@ from typing import List, Dict
 
 from ...typedefs import State
 
+class StateEnumerator:
+    def __init__(self):
+        self.state_hashes = []
+        self.hash_to_id = {}
+
+    def get_id(self, state: "StateSciBench") -> int:
+        state_hash = hash(state)
+        if state_hash not in self.hash_to_id:
+            new_id = len(self.state_hashes)
+            self.hash_to_id[state_hash] = new_id
+            self.state_hashes.append(state_hash)
+        return self.hash_to_id[state_hash]
+
+state_enumerator = StateEnumerator()
+
 @dataclass(frozen=True)
 class StateSciBench(State):
     # The initial question to solve
@@ -37,11 +52,15 @@ class StateSciBench(State):
         Returns a dictionary representation of the state.
         """
         return {
+            "puzzle": self.puzzle,
             "current_state": self.current_state,
             "steps": " -> ".join(self.steps),
+            "answer": self.answer,
+            "step_n": self.step_n,
+            "value": self.value,
             "values": self.values,
-            "value": self.values.get(self.step_n),
-            "reflections": self.reflections,
+            "randomness": self.randomness,
+            "reflections": self.reflections
         }
     
     def clone(self, randomness: int=None) -> "StateSciBench":

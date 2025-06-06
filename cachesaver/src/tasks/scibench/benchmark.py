@@ -69,7 +69,9 @@ class BenchmarkSciBench(Benchmark):
             steps=[],
             step_n=0,
             answer=y,
-            randomness=None
+            randomness=None,
+            values={0: 0.0},
+            reflections=[]
         )
         return index, state
 
