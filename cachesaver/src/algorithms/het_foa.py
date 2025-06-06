@@ -52,6 +52,8 @@ class AlgorithmHeterogenousFOA(Algorithm):
         self.min_steps = min_steps
         self.num_evaluations = num_evaluations
 
+        logger.info('#################################################################')
+
 
     def _get_ith_agent_dict(self, i) -> AgentDict:
         """Get the i-th agent in the fleet and its parameters."""

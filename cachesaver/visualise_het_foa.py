@@ -5,7 +5,8 @@ import json
 import colorsys
 from PIL import Image, ImageDraw, ImageFont
 import random
-
+import os
+from termcolor import colored
 
 # these will be given by the user
 logs = ''
@@ -134,8 +135,6 @@ def get_states_from_log(log):
         )
 
     return states
-    
-
 
 
 def get_timestep_object(logs, timestep=0):
@@ -419,7 +418,90 @@ def create_agent_diagrams(diagrams_data: List[dict], spacing: int = 50) -> Image
     return final_image
 
 
+current_puzzle = None
+while True:
+    cmd = input('>>> ')
 
-for puzzle_idx, flow in flows.items():
-    img = create_agent_diagrams(flow)
-    img.save(f'tmp/pic_{puzzle_idx}.png', format='PNG')
+    if cmd == 'q':
+        break
+
+    if cmd == 'clear':
+        os.system('cls' if os.name == 'nt' else 'clear')
+        continue
+
+    if cmd.startswith('open '):
+        puzzle_idx = int(cmd.split(' ')[1])
+        if puzzle_idx not in flows:
+            print(colored(f'Puzzle {puzzle_idx} not found.', 'red'))
+            continue
+        
+        current_puzzle = puzzle_idx
+        continue
+
+    if cmd.startswith('img'):
+        if current_puzzle is None:
+            print(colored('No puzzle selected. Use "open <puzzle_idx>" to select a puzzle.', 'red'))
+            continue
+        
+        img = create_agent_diagrams(flows[current_puzzle])
+        img.save(f'tmp/pic_{current_puzzle}.png', format='PNG')
+        print(colored(f'Image saved as tmp/pic_{current_puzzle}.png', 'green'))
+        continue
+
+    if cmd == 'ls':
+        for puzzle_idx in flows:
+            print(f'Puzzle {puzzle_idx}: ', colored('Won', 'green') if any(graph[puzzle_idx][-1].state_wins) else colored('Failed', 'red'))
+        continue
+
+    res = re.search(f'^s(\d+).*$', cmd)
+    if res:
+        idx = int(res.group(1))
+        if current_puzzle is None:
+            print(colored('No puzzle selected. Use "open <puzzle_idx>" to select a puzzle.', 'red'))
+            continue
+
+        name = f's{idx}'
+        if name not in state_names.values():
+            print(colored(f'State {name} not found.', 'red'))
+            continue
+
+        # Find the state in the current puzzle
+        found = False
+        state = None
+        for timestep in reversed(graph[current_puzzle]):
+            for s in timestep.agent_output_states:
+                if s.name == name:
+                    state = s
+                    found = True
+                    break
+
+            if found:
+                break
+        
+        for s in graph[current_puzzle][0].input_states:
+            if s.name == name:
+                state = s
+                found = True
+                break
+
+        if not found:
+            print(colored(f'State {name} not found in puzzle {current_puzzle}.', 'red'))
+
+        attr = cmd.replace(f's{idx}.', '').strip()
+        attr = attr.replace('cs', 'current_state') # shorthand
+        attr = attr.replace('sd', 'serial_data') # shorthand
+
+        try:
+            if any(attr.startswith(field) for field in ['name', 'color', 'num_thoughts', 'value', 'terminal_data', 'serial_data']):
+                expr = f'state.{attr}'
+            else:
+                expr = f'state.serial_data["{attr}"]'
+            
+            print(eval(expr))
+        except:
+            print(colored(f'Attribute {attr} not found in state {name}.', 'red'))
+
+        continue
+
+
+    print(colored('Unknown command.', 'yellow'))

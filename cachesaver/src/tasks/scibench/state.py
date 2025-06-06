@@ -40,6 +40,8 @@ class StateSciBench(State):
             "current_state": self.current_state,
             "steps": " -> ".join(self.steps),
             "values": self.values,
+            "value": self.values.get(self.step_n),
+            "reflections": self.reflections,
         }
     
     def clone(self, randomness: int=None) -> "StateSciBench":

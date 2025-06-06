@@ -24,8 +24,8 @@ react:
   num_steps: 10
 
 het_foa:
-  num_agents: 7
-  num_steps: 15
+  num_agents: 3
+  num_steps: 3
   k: 1
   backtrack: 0.5
   resampling: "linear_filtered"
