@@ -56,6 +56,7 @@ def generate_distinct_hex_colors(n):
 def load_logs() -> str:
     with open(f"logs/het_foa_logs.log", 'r') as f:
         logs = f.read()
+        logs = logs.split('#################################################################')[-1].strip()
     return logs
 
 

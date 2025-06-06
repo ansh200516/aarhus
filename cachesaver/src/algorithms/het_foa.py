@@ -51,6 +51,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
         self.origin = origin
         self.min_steps = min_steps
         self.num_evaluations = num_evaluations
+        self.input_state_values = []
 
         logger.info('#################################################################')
 
@@ -177,6 +178,9 @@ class AlgorithmHeterogenousFOA(Algorithm):
 
 
             logger.info(f"het_foa_logs-{idx}-{step}-agentinputs: {log_states(states)}")
+
+            # prepare data for backtracking agent
+            self.input_state_values = [state.value for state in states]
 
             # Generate actions for each state
             agent_coroutines = [

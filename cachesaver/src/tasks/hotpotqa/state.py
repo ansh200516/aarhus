@@ -31,6 +31,9 @@ class StateHotpotQA(State):
     # Value for this state. None means the value has not been computed yet.
     value: Optional[float] = None
 
+    # parent state
+    parent: Optional['StateHotpotQA'] = None
+
 
     def serialize(self) -> dict:
         """
@@ -63,7 +66,8 @@ class StateHotpotQA(State):
             docstore=self.docstore,
             randomness=randomness or self.randomness,
             reflections=current_reflections,
-            value=self.value
+            value=self.value,
+            parent=self.parent
         )
 
     def get_seed(self) -> int:

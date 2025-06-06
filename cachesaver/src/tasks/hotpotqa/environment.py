@@ -40,7 +40,9 @@ class EnvironmentHotpotQA(Environment):
             steps=state.steps + [step],
             answer=state.answer,
             docstore=state.docstore,
-            randomness=randomness
+            randomness=randomness,
+            reflections=state.reflections.copy(),
+            parent=state
         )
         return state
     

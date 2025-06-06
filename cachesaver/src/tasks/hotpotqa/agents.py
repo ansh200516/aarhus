@@ -474,6 +474,7 @@ class AgentTerminalReflectHotpotQA(StateReturningAgent):
                 docstore=state.docstore,
                 randomness=state.randomness,
                 reflections=[thoughts.pop(0)] + state.reflections,
+                parent=state,
             )
 
         return states
