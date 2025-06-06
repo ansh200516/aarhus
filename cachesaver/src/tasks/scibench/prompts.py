@@ -1,6 +1,3 @@
-
-
-
 react = '''Given a science problem, you need to answer the problem based on your existing knowledge. The input may include some existing steps to solve the question and you should continue to complete the solution based on these existing steps.
 
 If the input does not provide any existing steps, you need to analyze the problem and then give the first step in solving or calculating the problem. If partial solution steps are provided, you need to output the next step along the lines of the existing steps.
@@ -18,12 +15,8 @@ Existing steps:
 {existing_steps}
 Output:'''
 
+react_with_reflect = '''Given a science problem, you need to answer the problem based on your existing knowledge. The input will include some existing steps and your previous reasoning trial with reflections on the mistakes you made while  solving the question and you should continue to complete the solution while keeping in mind to not repeat the same mistakes and to improve on the previous trial.
 
-
-
-react_with_reflect = '''Given a science problem, you need to answer the problem based on your existing knowledge. The input may include some existing steps to solve the question and you should continue to complete the solution based on these existing steps.
-
-If the input does not provide any existing steps, you need to analyze the problem and then give the first step in solving or calculating the problem. If partial solution steps are provided, you need to output the next step along the lines of the existing steps.
 The output format is limited to: "Next step: ..." where ... indicates omitted output information, which is the next step in the answer that you should give. Your output must be a complete reasoning step, which should include detailed calculations, reasoning, choosing answers, etc.
 
 If the existing steps are already sufficient, you can output "The final answer is: $...$" where ... indicates the final answer to the question. 
@@ -84,8 +77,6 @@ Problem: {problem}
 Solutions:
 {steps}
 Output:'''
-
-
 
 bfs = '''Given a science problem, you need to answer the problem based on your existing knowledge. The input may include some existing steps to solve the question and you should continue to complete the solution based on these existing steps. 
 
@@ -172,7 +163,6 @@ Problem: {problem}
 Existing steps:
 {existing_steps}
 Output:'''
-
 
 ################################
 ###---Examples for fewshot---###
@@ -271,8 +261,12 @@ Step 1: To illustrate the convergence of the integral, consider splitting the in
 Step 2: For the first part, $0 \leq \frac{x^p \ln x}{(1+x^2)^2} \leq x^p$, so it converges if and only if $p>-2$.
 Evaluation: 0.1
 Reflection:
-Corrections required:
-- Incorrect convergence condition in Step 2: The statement that the integral $\int_0^1 \frac{x^p \ln x}{(1+x^2)^2} dx$ converges if and only if $p>-2$ is incorrect. The behavior near $x=0$ is critical. $\frac{x^p \ln x}{(1+x^2)^2} \sim x^p \ln x$ as $x \rightarrow 0^+$. The integral $\int_0^1 x^p \ln x dx$ converges if and only if $p > -1$.""",
+Diagnosis: The previous attempt incorrectly determined the convergence condition for the integral near x=0.
+Plan to improve:
+1. Re-evaluate the convergence of the integral near $x=0$.
+2. Analyze the behavior of the integrand as $x \rightarrow 0^+$.
+3. Apply the correct convergence rule for integrals of the form $\int_0^1 x^p \ln x dx$.
+""",
 
 """Problem: Find the average value of the function $f(x)=1+x^2$ on the interval $[-1,2]$.
 Previous Solution:
@@ -280,8 +274,12 @@ Step 1: Consider the value of the function at the endpoints of the interval: We 
 Step 2: Then we can calculate the average value of the function at these two endpoints, that is, $\frac{2+5}{2}=3.5$. This is the average value of the function on the interval $[-1,2]$.
 Evaluation: 0.0
 Reflection:
-Corrections required:
-- Incorrect method for average value: Averaging function values at endpoints is not the correct method for determining the average value of a function over an interval. The correct method is to use the formula for the average value of a function, which is $\frac{1}{b-a} \int_a^b f(x) dx$. For this problem, it would be $\frac{1}{2 - (-1)} \int_{-1}^{2} (1+x^2) dx$.""",
+Diagnosis: The previous attempt used an incorrect method, averaging only the endpoint values.
+Plan to improve:
+1. Use the correct formula for the average value of a function: $\frac{1}{b-a} \int_a^b f(x) dx$.
+2. Calculate the definite integral of $f(x)=1+x^2$ over the interval $[-1, 2]$.
+3. Divide the result of the integral by the length of the interval.
+""",
 """
 Problem: Solve the differential equation $y'' - y = e^x$.
 Previous Solution: 
@@ -293,9 +291,11 @@ Step 5: Substituting into the differential equation: $A e^x - A e^x = e^x$, whic
 Step 6: This equation has no solution for A, so there is no particular solution of the assumed form. The method of undetermined coefficients fails for this problem.
 Evaluation: 0.2
 Reflection:
-Corrections required:
-- Incorrect form of $y_p$: When the assumed form of $y_p$ (based on the non-homogeneous term $g(x)=e^x$) is a solution to the homogeneous equation, the guess must be multiplied by $x$ (or $x^k$ if $x^{k-1}e^x$ is also a solution to the homogeneous equation).
-- Modified guess: The correct guess for $y_p$ should be $y_p(x) = A x e^x$. Differentiating this, $y_p' = A(e^x + xe^x)$ and $y_p'' = A(2e^x + xe^x)$. Substituting these into $y'' - y = e^x$ will yield $A(2e^x + xe^x) - Axe^x = e^x$, which simplifies to $2Ae^x = e^x$, so $2A=1$, $A=1/2$. The particular solution is $y_p = \frac{1}{2} x e^x$.
+Diagnosis: The assumed form for the particular solution was incorrect because it was already a solution to the homogeneous equation.
+Plan to improve:
+1. Identify that the non-homogeneous term $e^x$ is part of the complementary solution.
+2. Modify the guess for the particular solution to the form $y_p(x) = A x e^x$.
+3. Solve for the coefficient A by substituting the new $y_p$ into the differential equation.
 """,
 """
 Problem: Determine if the integral $\int_0^1 \frac{1}{x \sqrt{x}} dx$ converges or diverges.
@@ -306,10 +306,12 @@ Step 3: We can evaluate this as a p-integral of the form $\int_0^1 \frac{1}{x^p}
 Step 4: For an integral of the form $\int_0^1 \frac{1}{x^p} dx$ to converge, we need $p > 1$.
 Step 5: Since $p = 3/2 > 1$, the integral converges."
 Evaluation: 0.0
-Reflection: 
-Corrections required:
-- Incorrect p-integral condition for $\int_0^a$: For an improper integral of the form $\int_0^a \frac{1}{x^p} dx$ (where $a>0$), convergence occurs if and only if $p < 1$. The condition $p>1$ is for improper integrals of the form $\int_a^\infty \frac{1}{x^p} dx$.
-- Correct conclusion: Since $p = 3/2$, which is not less than 1 (i.e., $p \ge 1$), the integral $\int_0^1 \frac{1}{x^{3/2}} dx$ diverges.
+Reflection:
+Diagnosis: The previous attempt applied the incorrect convergence condition for a p-integral on the interval $[0, a]$.
+Plan to improve:
+1. Identify the integral as an improper p-integral of the form $\int_0^a \frac{1}{x^p} dx$.
+2. Apply the correct convergence condition for this type of integral ($p < 1$).
+3. Compare the given p-value with the condition to determine convergence or divergence.
 """,
 """
 Problem: Find the Maclaurin series for $f(x) = \cos(x^2)$.
@@ -319,33 +321,34 @@ Step 2: Let $u=x$. Then the Maclaurin series for $\cos(x)$ is $1 - \frac{x^2}{2!
 Step 3: To find the series for $\cos(x^2)$, we square each term in the series for $\cos(x)$ and sum them up: $\cos(x^2) \approx (1)^2 - (\frac{x^2}{2!})^2 + (\frac{x^4}{4!})^2 - \dots = 1 - \frac{x^4}{4} + \frac{x^8}{576} - \dots$.
 Step 4: Therefore, the Maclaurin series for $\cos(x^2)$ is $1 - \frac{x^4}{4} + \frac{x^8}{576} - \dots$.
 Evaluation: 0.1
-Reflection: 
-Corrections required:
-- Incorrect algebraic manipulation: Squaring the terms of the series for $\cos(x)$ (i.e., $(f_0)^2 + (f_1 x)^2 + \dots$) does not yield the series for $\cos(x^2)$. The operation $f(x^2)$ means substituting $x^2$ for $x$ in the function $f(x)$, not operating on the terms of the series for $f(x)$ as if they were independent entities being squared.
-- Proper use of substitution: The correct method is to take the Maclaurin series for $\cos(u)$ and substitute $u=x^2$ directly into this series.
-- Resulting series: Given $\cos(u) = \sum_{n=0}^{\infty} (-1)^n \frac{u^{2n}}{(2n)!}$, substituting $u=x^2$ yields $\cos(x^2) = \sum_{n=0}^{\infty} (-1)^n \frac{(x^2)^{2n}}{(2n)!} = \sum_{n=0}^{\infty} (-1)^n \frac{x^{4n}}{(2n)!} = 1 - \frac{x^4}{2!} + \frac{x^8}{4!} - \frac{x^{12}}{6!} + \dots$."
+Reflection:
+Diagnosis: The previous attempt incorrectly tried to find the Maclaurin series by squaring the terms of the series for $\cos(x)$.
+Plan to improve:
+1. Start with the known Maclaurin series for $\cos(u)$.
+2. Substitute $u = x^2$ into the series.
+3. Simplify the resulting expression to get the series for $\cos(x^2)$.
 """
-
 ]
 
-reflect = '''You are an advanced scientific problem-solving agent that can improve based on self-reflection.
-You will be given a science problem, a previous solution attempt which was unsuccessful, and its evaluation.
-Your task is to diagnose the possible reasons for failure or inefficiency in the previous solution and devise a plan for correction.
-Corrections should be as concise as possible and to the point.
+reflect = '''You are an advanced scientific problem-solving that can improve based on self reflection. You will be given a previous reasoning trial in which you were given access to relevant context and a question to answer.
+You were unsuccessful in answering the question either because you produced a terminal state (with invalid answer) or because the evaluation score of your previous trial decreased.
+In few sentences, Diagnose a possible reason for this faliure(evaluation score decreased) and provide a new, concise, high level plan that aims to mitigate the same faliure. Use complete sentences.
+Strictly follow the output format given below for your reflection.
 
 Output format:
-Corrections required:
-- <Specific error/weakness 1 identified in the previous solution>: <Brief explanation of the error>: <How to correct it or what the correct approach/step should be>
-- <Specific error/weakness 2 identified in the previous solution>: <Brief explanation of the error>: <How to correct it or what the correct approach/step should be>
-...
+
+Diagnosis: [Brief explanation of what went wrong in previous attempt]
+Plan to improve:
+1. [First key action to take]
+2. [Second key action to take]
+3. [Third key action to take if needed]
 (END OF OUTPUT FORMAT)
 
 Here are some examples:
 {examples}
-
 (END OF EXAMPLES)
 
-Now, provide your reflection for the following:
+Previous trial:
 Problem: {problem}
 Previous Solution:
 {scratchpad}

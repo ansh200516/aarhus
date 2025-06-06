@@ -4,7 +4,7 @@ import logging
 from typing import List
 from dataclasses import replace
 from . import prompts as prompts
-from .state import StateSciBench
+from .state import StateSciBench, state_enumerator
 from ...typedefs import Agent, Model, DecodingParameters, StateReturningAgent, ValueFunctionRequiringAgent, AgentDict
 from .environment import EnvironmentSciBench
 
@@ -241,7 +241,7 @@ class AgentEvaluateSciBench(Agent):
             value = cache[state.current_state]
         else:
             # Format the promp
-            num_examples = 2
+            num_examples = 3
             examples = "Example:\n" + "\n\nExample:\n".join(
                 [example for example in prompts.examples_evaluate[:num_examples]]
             )
@@ -292,16 +292,17 @@ class AgentReflectSciBench(Agent):
         request_id: str,
         params: DecodingParameters,
     ):
-        num_examples = min(2, len(prompts.examples_reflect))
+        num_examples = min(3, len(prompts.examples_reflect))
         examples_str = "(Example Reflection)\n" + "\n\n(Example Reflection)\n".join(
         [example for example in prompts.examples_reflect[:num_examples]]
         )
         
         scratchpad = state.current_state
+        previous_evaluation_score = state.values[state.step_n-1] if state.step_n > 0 else 0
         evaluation_score = state.values[state.step_n]
 
-        logger.info(f"Generating reflection with evaluation score {evaluation_score}")
-        print(f"Generating reflection with evaluation score {evaluation_score}")
+        logger.info(f"State {state_enumerator.get_id(state)}: Value changed from {previous_evaluation_score} to {evaluation_score}, generating reflection")
+        print(f"State {state_enumerator.get_id(state)}: Value changed from {previous_evaluation_score} to {evaluation_score},generating reflection")
         prompt = prompts.reflect.format(
             examples=examples_str,
             problem=state.puzzle,
@@ -318,8 +319,8 @@ class AgentReflectSciBench(Agent):
         )
 
         reflection_text = responses[0].strip()
-        logger.info(f"Generated reflection for state {state.current_state}: {reflection_text}")
-        print(f"Generated reflection for state {state.current_state}: {reflection_text}")
+        logger.info(f"Generated reflection for state {state_enumerator.get_id(state)}")
+        print(f"Generated reflection for state {state_enumerator.get_id(state)}")
         return reflection_text
     
 class AgentTerminalReflectSciBench(StateReturningAgent):
@@ -477,7 +478,7 @@ class AgentValueReduceReflectSciBench(StateReturningAgent, ValueFunctionRequirin
             old_state_with_thought.reflections.insert(0, thoughts.pop(0))
 
             # TODO: Adjust the value of the state after reflection
-            new_value = state.value + 0.5 # small increase in value for reflection
+            new_value = state.value*1.1 # small increase in value for reflection
             new_states.append(replace(old_state_with_thought, value=new_value))
 
         return new_states
