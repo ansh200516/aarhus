@@ -370,7 +370,7 @@ class AgentEvaluateHotpotQA(Agent):
                 # print(f"Unable to parse value from response : {response}")
                 value = 1
             values.append(value)
-        value = sum(values)
+        value = sum(values) / len(values) if values else 0
 
         # Cache the value
         if cache is not None:
@@ -568,10 +568,7 @@ class AgentValueReduceReflectHotpotQA(StateReturningAgent, ValueFunctionRequirin
         for i in range(num_thoughts):
             old_state_with_thought = state.clone()
             old_state_with_thought.reflections.insert(0, thoughts.pop(0))
-
-            # TODO: Adjust the value of the state after reflection
-            new_value = state.value # small increase in value for reflection
-            new_states.append(replace(old_state_with_thought, value=new_value))
+            new_states.append(replace(old_state_with_thought, value=None))
 
         return new_states
 

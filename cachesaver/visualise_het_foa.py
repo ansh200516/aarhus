@@ -53,11 +53,13 @@ def generate_distinct_hex_colors(n):
     return colors
 
 
-def load_logs() -> str:
+def load_logs(run_id) -> str:
     with open(f"logs/het_foa_logs.log", 'r') as f:
         logs = f.read()
-        logs = logs.split('#################################################################')[-1].strip()
-    return logs
+        logs = logs.split('#################################################################')
+        num_logs = len(logs) - 1
+        logs = logs[run_id].strip()
+    return logs, num_logs
 
 
 def get_puzzle_idx(log):
@@ -179,81 +181,6 @@ def get_final_timestep(logs, timestep=0):
         replacement_states=get_states_from_log(logs[4]),
         values=None
     )
-    
-
-
-# process the logs
-logs = load_logs()
-logs = logs.split('\n')
-het_foa_logs = []
-fleet = []
-for log in logs:
-    if 'het_foa_logs' in log:
-        if '-fleet:' in log:
-            if len(fleet) == 0:
-                fleet = get_fleet(log)
-            else:
-                assert fleet == get_fleet(log), f'Fleet mismatch in log: {log} and {fleet=}'
-        else:
-            het_foa_logs.append('het_foa_logs: ' + log.split('het_foa_logs: ')[-1].strip())
-
-puzzles = set()
-for log in het_foa_logs:
-    puzzles.add(get_puzzle_idx(log))
-
-puzzles = {
-    pid: []
-    for pid in list(puzzles)
-}
-
-for log in het_foa_logs:
-    puzzle_idx = get_puzzle_idx(log)
-    puzzles[puzzle_idx].append(log)
-
-
-graph: Dict[int, List[Timestep]] = {}
-flows = {}
-for puzzle_idx, logs in puzzles.items():
-    graph[puzzle_idx] = []
-    t = 0
-    while len(logs) > 0:
-        if len(logs) == 5:
-            timestep = get_final_timestep(logs, t)
-            logs = logs[5:]
-        else:
-            timestep = get_timestep_object(logs[:6], t)
-            logs = logs[6:]
-        graph[puzzle_idx].append(timestep)
-        t += 1
-
-    num_colors = len(state_colors)
-    colors = generate_distinct_hex_colors(num_colors)
-    random.shuffle(colors)
-
-    for k in state_colors:
-        state_colors[k] = colors.pop(0)
-
-    # iterate over all States and reset colors
-    for timestep in graph[puzzle_idx]:
-        for state in timestep.input_states + timestep.agent_output_states + timestep.replacement_states:
-            state.color = get_state_color(state.name)
-
-    for timestep in graph[puzzle_idx]:
-        for i in range(len(timestep.agent_output_states)):
-            if timestep.state_fails[i]:
-                timestep.agent_output_states[i].terminal_data = 'Failed'
-            elif timestep.state_wins[i]:
-                timestep.agent_output_states[i].terminal_data = 'Winning'
-            
-            if timestep.agent_output_states[i].value is None:
-                timestep.agent_output_states[i].value = timestep.values[i] if timestep.values else None
-
-    flows[puzzle_idx] = [{
-        'agent_name': fleet[i],
-        'input_states': [t.input_states[i] for t in graph[puzzle_idx]],
-        'output_states': [t.agent_output_states[i] for t in graph[puzzle_idx]],
-    } for i in range(len(fleet))]
-
 
 
 def draw_agent_diagram(agent_name: str, input_states: List[State], output_states: List[State], 
@@ -344,6 +271,7 @@ def draw_agent_diagram(agent_name: str, input_states: List[State], output_states
     
     return img, diagram_width
 
+
 def draw_state(draw: ImageDraw.Draw, state: State, x: int, y: int, width: int, 
                font: ImageFont.ImageFont, bold_font: ImageFont.ImageFont, padding: int) -> int:
     """
@@ -378,6 +306,7 @@ def draw_state(draw: ImageDraw.Draw, state: State, x: int, y: int, width: int,
         text_y += line_height
     
     return y + total_height
+
 
 def create_agent_diagrams(diagrams_data: List[dict], spacing: int = 50) -> Image.Image:
     """
@@ -419,7 +348,87 @@ def create_agent_diagrams(diagrams_data: List[dict], spacing: int = 50) -> Image
     return final_image
 
 
+# process the logs
+def process_logs(run_id):
+    global num_logs
+    logs, num_logs = load_logs(run_id)
+    logs = logs.split('\n')
+    het_foa_logs = []
+    fleet = []
+    for log in logs:
+        if 'het_foa_logs' in log:
+            if '-fleet:' in log:
+                if len(fleet) == 0:
+                    fleet = get_fleet(log)
+                else:
+                    assert fleet == get_fleet(log), f'Fleet mismatch in log: {log} and {fleet=}'
+            else:
+                het_foa_logs.append('het_foa_logs: ' + log.split('het_foa_logs: ')[-1].strip())
+
+    puzzles = set()
+    for log in het_foa_logs:
+        puzzles.add(get_puzzle_idx(log))
+
+    puzzles = {
+        pid: []
+        for pid in list(puzzles)
+    }
+
+    for log in het_foa_logs:
+        puzzle_idx = get_puzzle_idx(log)
+        puzzles[puzzle_idx].append(log)
+
+
+    graph: Dict[int, List[Timestep]] = {}
+    flows = {}
+    for puzzle_idx, logs in puzzles.items():
+        graph[puzzle_idx] = []
+        t = 0
+        while len(logs) > 0:
+            if len(logs) == 5:
+                timestep = get_final_timestep(logs, t)
+                logs = logs[5:]
+            else:
+                timestep = get_timestep_object(logs[:6], t)
+                logs = logs[6:]
+            graph[puzzle_idx].append(timestep)
+            t += 1
+
+        num_colors = len(state_colors)
+        colors = generate_distinct_hex_colors(num_colors)
+        random.shuffle(colors)
+
+        for k in state_colors:
+            state_colors[k] = colors.pop(0)
+
+        # iterate over all States and reset colors
+        for timestep in graph[puzzle_idx]:
+            for state in timestep.input_states + timestep.agent_output_states + timestep.replacement_states:
+                state.color = get_state_color(state.name)
+
+        for timestep in graph[puzzle_idx]:
+            for i in range(len(timestep.agent_output_states)):
+                if timestep.state_fails[i]:
+                    timestep.agent_output_states[i].terminal_data = 'Failed'
+                elif timestep.state_wins[i]:
+                    timestep.agent_output_states[i].terminal_data = 'Winning'
+                
+                if timestep.agent_output_states[i].value is None:
+                    timestep.agent_output_states[i].value = timestep.values[i] if timestep.values else None
+
+        flows[puzzle_idx] = [{
+            'agent_name': fleet[i],
+            'input_states': [t.input_states[i] for t in graph[puzzle_idx]],
+            'output_states': [t.agent_output_states[i] for t in graph[puzzle_idx]],
+        } for i in range(len(fleet))]
+
+    return graph, flows
+
+
 current_puzzle = None
+num_logs = 1
+run_id = -1
+graph, flows = process_logs(run_id)
 while True:
     cmd = input('>>> ')
 
@@ -453,6 +462,15 @@ while True:
     if cmd == 'ls':
         for puzzle_idx in flows:
             print(f'Puzzle {puzzle_idx}: ', colored('Won', 'green') if any(graph[puzzle_idx][-1].state_wins) else colored('Failed', 'red'))
+        continue
+
+    if cmd.startswith('run '):
+        run_id = int(cmd.split(' ')[1])
+        graph, flows = process_logs(run_id)
+        continue
+
+    if cmd == 'runs':
+        print(f'Available runs: {num_logs}')
         continue
 
     res = re.search(f'^s(\d+).*$', cmd)
