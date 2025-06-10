@@ -45,6 +45,7 @@ class StateHotpotQA(State):
             "reflections": self.reflections,
             "value": self.value,
             "puzzle": self.puzzle,
+            "answer": self.answer,
         }
     
     def clone(self, randomness: int = None, new_reflection: Optional[str] = None, reset_reflections: bool = False, reset_trajectory: bool = False) -> "StateHotpotQA":
