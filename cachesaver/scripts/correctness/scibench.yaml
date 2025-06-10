@@ -24,14 +24,14 @@ react:
   num_steps: 10
 
 het_foa:
-  num_agents: 3
-  num_steps: 3
+  num_agents: 7
+  num_steps: 15
   k: 1
   backtrack: 0.5
   resampling: "linear_filtered"
   min_steps: 1
   num_evaluations: 3
-  origin: 30
+  origin: 2
   
 rap:
   num_iterations: 10

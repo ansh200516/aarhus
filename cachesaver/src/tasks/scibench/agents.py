@@ -399,7 +399,7 @@ class AgentValueReduceReflectSciBench(StateReturningAgent, ValueFunctionRequirin
         params: DecodingParameters,
         value_agent: AgentDict
     ) -> List[str]:
-        actions = await AgentActSciBench.act(
+        actions = await AgentReactSciBench.act(
             model=model,
             state=state,
             n=n,

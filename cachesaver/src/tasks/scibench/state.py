@@ -39,7 +39,7 @@ class StateSciBench(State):
     step_n: int = 0
 
     # The current evaluated value of the state
-    value: float = 0.0
+    value: float | None = None
 
     # The value that the state had at its last evaluation
     values: Dict = field(default_factory=dict)
