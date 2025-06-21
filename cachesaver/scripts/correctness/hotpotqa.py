@@ -23,20 +23,75 @@ from src.tasks.hotpotqa import *
 
 def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
 # Setup the method
-    if method_name == "het_foa":
+    if method_name == "new_algo":
         step_agents = []
 
         # build the fleet of agents here
         step_agents.append({
+            "agent": AgentActHotpotQA,
+            "params": params,
+            "num_agents": 1,
+        })
+
+        step_agents.append({
             "agent": AgentValueReduceReflectHotpotQA,
             "params": params,
-            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
+            "num_agents": 1,
         })
 
         step_agents.append({
             "agent": AgentReactHotpotQA,
             "params": params,
-            "num_agents": config.het_foa.num_agents // 2,
+            "num_agents": 1,
+        })
+
+        agents = AgentDictHeterogenousFOA(
+            evaluate=AgentEvaluateHotpotQA,
+            eval_params=params,
+            step_agents=step_agents
+        )
+
+        logger.info(f"Using these agents for New Algo:")
+        for i in range(len(agents["step_agents"])):
+            logger.info(f"{step_agents[i]['agent'].__name__} ({agents['step_agents'][i]['num_agents']}): Temperature: {agents['step_agents'][i]['params'].temperature}, Top P: {agents['step_agents'][i]['params'].top_p}")
+
+
+        method = AlgorithmNewAlgo(
+            model=api,
+            agents=agents,
+            env=EnvironmentHotpotQA,
+            width=config.new_algo.width,
+            num_steps=config.new_algo.num_steps,
+            max_value=config.new_algo.max_value,
+            k=config.new_algo.k,
+            alpha=config.new_algo.alpha,
+            backtrack=config.new_algo.backtrack,
+            resampling=config.new_algo.resampling,
+            origin=config.new_algo.origin,
+            min_steps=config.new_algo.min_steps,
+            num_evaluations=config.new_algo.num_evaluations,
+        )
+
+    elif method_name == "het_foa":
+        step_agents = []
+
+        # build the fleet of agents here
+        step_agents.append({
+            "agent": AgentActHotpotQA,
+            "params": params,
+            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 3 - config.het_foa.num_agents // 3,
+        })
+
+        step_agents.append({
+            "agent": AgentValueReduceReflectHotpotQA,
+            "params": params,
+            "num_agents": config.het_foa.num_agents // 3,
+        })
+
+        step_agents.append({
+            "agent": AgentReactHotpotQA,
+            "params": params,
+            "num_agents": config.het_foa.num_agents // 3,
         })
 
         agents = AgentDictHeterogenousFOA(

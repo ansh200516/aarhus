@@ -410,19 +410,53 @@ def process_logs(run_id):
             for i in range(len(timestep.agent_output_states)):
                 if timestep.state_fails[i]:
                     timestep.agent_output_states[i].terminal_data = 'Failed'
-                elif timestep.state_wins[i]:
+                if timestep.state_wins[i]:
                     timestep.agent_output_states[i].terminal_data = 'Winning'
                 
                 if timestep.agent_output_states[i].value is None:
                     timestep.agent_output_states[i].value = timestep.values[i] if timestep.values else None
 
-        flows[puzzle_idx] = [{
-            'agent_name': fleet[i],
-            'input_states': [t.input_states[i] for t in graph[puzzle_idx]],
-            'output_states': [t.agent_output_states[i] for t in graph[puzzle_idx]],
-        } for i in range(len(fleet))]
+        try:
+            flows[puzzle_idx] = [{
+                'agent_name': fleet[i],
+                'input_states': [t.input_states[i] for t in graph[puzzle_idx]],
+                'output_states': [
+                    tp.agent_output_states[i]
+                    for tp in graph[puzzle_idx]
+                ],
+            } for i in range(len(fleet))]
+        except:
+            for i in range(len(fleet)):
+                for tp in graph[puzzle_idx]:
+                    if len(tp.agent_output_states) != len(fleet):
+                        # print(len(tp.agent_output_states), i, len(tp.input_states), (tp.agent_output_states)[0])
+                        # input()
+                        pass
 
     return graph, flows
+
+
+def get_agent_scores(flows):
+    agents = {}
+
+    for puzzle_idx in flows:
+        for agent_data in flows[puzzle_idx]:
+            if agent_data['agent_name'] not in agents:
+                agents[agent_data['agent_name']] = 0
+            
+            for i in range(len(agent_data['input_states'])):
+                input_val = agent_data['input_states'][i].value
+                output_val = agent_data['output_states'][i].value
+
+                if not output_val:
+                    output_val = 0
+                
+                if agent_data['output_states'][i].terminal_data == 'Winning':
+                    output_val = 10 # TODO: Change according to task
+
+                agents[agent_data['agent_name']] += output_val - input_val
+
+    return agents
 
 
 current_puzzle = None
@@ -461,7 +495,8 @@ while True:
 
     if cmd == 'ls':
         for puzzle_idx in flows:
-            print(f'Puzzle {puzzle_idx}: ', colored('Won', 'green') if any(graph[puzzle_idx][-1].state_wins) else colored('Failed', 'red'))
+            puzzle_won = any([any(timestep.state_wins) for timestep in graph[puzzle_idx]])
+            print(f'Puzzle {puzzle_idx}: ', colored('Won', 'green') if puzzle_won else colored('Failed', 'red'))
         continue
 
     if cmd.startswith('run '):
@@ -471,6 +506,10 @@ while True:
 
     if cmd == 'runs':
         print(f'Available runs: {num_logs}')
+        continue
+
+    if cmd == 'scores':
+        print(get_agent_scores(flows))
         continue
 
     res = re.search(f'^s(\d+).*$', cmd)

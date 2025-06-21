@@ -152,9 +152,6 @@ First provide an analysis, then the score. Your analysis and scoring should be e
 
 {examples}
 
-Previous Reflections:
-{reflections}
-
 Below is a problem and the existing steps, with analysis and scoring. Be careful not to output the next steps in the analysis, and the scoring should be based entirely on the steps given in the input.
 The output format is limited to: "Analysis:...\nScore:...", where ... indicates omitted output content, which is the part you need to fill in.
 
@@ -162,6 +159,8 @@ Input:
 Problem: {problem}
 Existing steps:
 {existing_steps}
+Reflections generated:
+{reflections}
 Output:'''
 
 ################################

@@ -47,6 +47,8 @@ class StateSciBench(State):
     # A list to store all reflections made during the process
     reflections: List[str] = field(default_factory=list)
 
+    t: int = 0
+
     def serialize(self) -> dict:
         """
         Returns a dictionary representation of the state.
@@ -60,7 +62,8 @@ class StateSciBench(State):
             "value": self.value,
             "values": self.values,
             "randomness": self.randomness,
-            "reflections": self.reflections
+            "reflections": self.reflections,
+            "timestep": self.t,
         }
     
     def clone(self, randomness: int=None) -> "StateSciBench":
@@ -73,6 +76,7 @@ class StateSciBench(State):
             steps=self.steps,
             answer=self.answer,
             step_n=self.step_n,
+            t=self.t,
             value=self.value,
             values=self.values,
             randomness=randomness or self.randomness,

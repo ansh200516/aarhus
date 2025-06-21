@@ -44,6 +44,8 @@ class BenchmarkHotpotQA(Benchmark):
         # valid_idxs -= set(mini_set_idxs)
         
         mini_set_idxs = random.sample(list(valid_idxs), 15)
+        mini_set_idxs = random.sample(list(valid_idxs), 15)
+        mini_set_idxs = random.sample(list(valid_idxs), 15)
         valid_idxs -= set(mini_set_idxs)
 
         train_set_idxs = random.sample(list(valid_idxs), 50)
@@ -52,11 +54,15 @@ class BenchmarkHotpotQA(Benchmark):
         validation_set_idxs = random.sample(list(valid_idxs), 50)
         valid_idxs -= set(validation_set_idxs)
 
-        if split == "single":
-            single_set_idxs = [7393] # TODO: Remove
+        shoan_idxs = [4244] * 5
+
+        if split == "shoan":
+            self.data = [data[i] for i in test_set_idxs[:15]]
+        elif split == "single":
+            single_set_idxs = [4244]
             self.data = [data[i] for i in single_set_idxs]
         elif split == "mini":
-                self.data = [data[i] for i in mini_set_idxs]
+            self.data = [data[i] for i in mini_set_idxs]
         elif split == "train":
             self.data = [data[i] for i in train_set_idxs]
         elif split == "validation":

@@ -31,8 +31,14 @@ class StateHotpotQA(State):
     # Value for this state. None means the value has not been computed yet.
     value: Optional[float] = None
 
+    # Param for testing bayesian updates
+    uncertainty: Optional[float] = None
+
     # parent state
     parent: Optional['StateHotpotQA'] = None
+
+    # timestep
+    t: int = 0
 
 
     def serialize(self) -> dict:
@@ -42,8 +48,10 @@ class StateHotpotQA(State):
         return {
             "current_state": self.current_state,
             "steps": " -> ".join(self.steps),
+            "timestep": self.t,
             "reflections": self.reflections,
             "value": self.value,
+            "uncertainty": self.uncertainty,
             "puzzle": self.puzzle,
             "answer": self.answer,
         }
@@ -69,7 +77,9 @@ class StateHotpotQA(State):
             randomness=randomness or self.randomness,
             reflections=current_reflections,
             value=self.value,
-            parent=self.parent
+            uncertainty=self.uncertainty,
+            parent=self.parent,
+            t=self.t
         )
 
     def get_seed(self) -> int:

@@ -38,6 +38,7 @@ class EnvironmentHotpotQA(Environment):
             puzzle=state.puzzle,
             current_state=(state.current_state+step).strip(),
             steps=state.steps + [step],
+            t=state.t + 1,
             answer=state.answer,
             docstore=state.docstore,
             randomness=randomness,
@@ -71,6 +72,23 @@ class EnvironmentHotpotQA(Environment):
 
     @staticmethod
     def evaluate(state: StateHotpotQA) -> Tuple[bool, float]:
+        """
+        Evaluates the current state.
+        """
+        is_final = EnvironmentHotpotQA.is_final(state)
+        if is_final is True:
+            obs = state.current_state.split("\n")[-1].strip()
+            if OBS_CORRECT in obs:
+                return True, 1.0
+            else:
+                return True, 0.0
+        else:
+            return False, 0.0
+
+        # return False, 0.0 # cuz no cheating
+    
+    @staticmethod
+    def cheat_evaluate(state: StateHotpotQA) -> Tuple[bool, float]:
         """
         Evaluates the current state.
         """

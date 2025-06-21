@@ -22,7 +22,8 @@ class EnvironmentSciBench(Environment):
             answer=state.answer,
             step_n=state.step_n + 1,
             values=state.values,
-            randomness=randomness
+            randomness=randomness,
+            t=state.t+1
         )
         return state
 
@@ -47,6 +48,19 @@ class EnvironmentSciBench(Environment):
     
     @staticmethod
     def evaluate(state: StateSciBench) -> Tuple[bool, float]:
+        """
+        Evaluates the current state.
+        """
+        final = EnvironmentSciBench.is_final(state)
+        if final:
+            if not state.steps:
+                return True, 0.0
+            return True, verify_answer(state.answer, state.steps[-1])
+        else:
+            return False, 0.0
+        
+    @staticmethod
+    def cheat_evaluate(state: StateSciBench) -> Tuple[bool, float]:
         """
         Evaluates the current state.
         """

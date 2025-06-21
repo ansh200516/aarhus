@@ -27,41 +27,75 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
-# Setup the method
-    if method_name == "foa":
-        agents = AgentDictFOA(
-            step=AgentActSciBench,
-            evaluate=AgentEvaluateSciBench,
-            step_params=params,
-            eval_params=params,
-        )
-        method = AlgorithmFOA(
-            model=api,
-            agents=agents,
-            env=EnvironmentSciBench,
-            num_agents=config.foa.num_agents,
-            num_steps=config.foa.num_steps,
-            k=config.foa.k,
-            backtrack=config.foa.backtrack,
-            resampling=config.foa.resampling,
-            origin=config.foa.origin,
-            min_steps=config.foa.min_steps,
-            num_evaluations=config.foa.num_evaluations,
-        )
-    elif method_name == "het_foa":
+    # Setup the method
+    if method_name == "new_algo":
         step_agents = []
 
         # build the fleet of agents here
         step_agents.append({
+            "agent": AgentActSciBench,
+            "params": params,
+            "num_agents": 1,
+        })
+
+        step_agents.append({
             "agent": AgentValueReduceReflectSciBench,
             "params": params,
-            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 2,
+            "num_agents": 1,
         })
 
         step_agents.append({
             "agent": AgentReactSciBench,
             "params": params,
-            "num_agents": config.het_foa.num_agents // 2,
+            "num_agents": 1,
+        })
+
+        agents = AgentDictHeterogenousFOA(
+            evaluate=AgentEvaluateSciBench,
+            eval_params=params,
+            step_agents=step_agents
+        )
+
+        logger.info(f"Using these agents for New Algo:")
+        for i in range(len(agents["step_agents"])):
+            logger.info(f"{step_agents[i]['agent'].__name__} ({agents['step_agents'][i]['num_agents']}): Temperature: {agents['step_agents'][i]['params'].temperature}, Top P: {agents['step_agents'][i]['params'].top_p}")
+
+
+        method = AlgorithmNewAlgo(
+            model=api,
+            agents=agents,
+            env=EnvironmentSciBench,
+            width=config.new_algo.width,
+            num_steps=config.new_algo.num_steps,
+            max_value=config.new_algo.max_value,
+            k=config.new_algo.k,
+            alpha=config.new_algo.alpha,
+            backtrack=config.new_algo.backtrack,
+            resampling=config.new_algo.resampling,
+            origin=config.new_algo.origin,
+            min_steps=config.new_algo.min_steps,
+            num_evaluations=config.new_algo.num_evaluations,
+        )
+
+    elif method_name == "het_foa":
+        step_agents = []
+
+        step_agents.append({
+            "agent": AgentActSciBench,
+            "params": params,
+            "num_agents": config.het_foa.num_agents - config.het_foa.num_agents // 3 - (config.het_foa.num_agents + 1)//3,
+        })
+
+        step_agents.append({
+            "agent": AgentValueReduceReflectSciBench,
+            "params": params,
+            "num_agents": config.het_foa.num_agents // 3,
+        })
+
+        step_agents.append({
+            "agent": AgentReactSciBench,
+            "params": params,
+            "num_agents": (config.het_foa.num_agents + 1) // 3,
         })
 
         agents = AgentDictHeterogenousFOA(
@@ -87,7 +121,28 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             min_steps=config.het_foa.min_steps,
             num_evaluations=config.het_foa.num_evaluations,
         )
-        
+
+    elif method_name == "foa":
+        agents = AgentDictFOA(
+            step=AgentActSciBench,
+            evaluate=AgentEvaluateSciBench,
+            step_params=params,
+            eval_params=params,
+        )
+        method = AlgorithmFOA(
+            model=api,
+            agents=agents,
+            env=EnvironmentSciBench,
+            num_agents=config.foa.num_agents,
+            num_steps=config.foa.num_steps,
+            k=config.foa.k,
+            backtrack=config.foa.backtrack,
+            resampling=config.foa.resampling,
+            origin=config.foa.origin,
+            min_steps=config.foa.min_steps,
+            num_evaluations=config.foa.num_evaluations,
+        )
+
     elif method_name == "tot_bfs":
         agents = AgentDictTOT(
             step=AgentBfsSciBench,

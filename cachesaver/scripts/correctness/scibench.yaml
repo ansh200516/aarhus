@@ -1,3 +1,25 @@
+new_algo:
+  width: 3
+  num_steps: 9
+  max_value: 1
+  k: 0
+  alpha: 5
+  backtrack: 0.5
+  resampling: "linear_filtered"
+  min_steps: 1
+  num_evaluations: 3
+  origin: 2
+
+het_foa:
+  num_agents: 3
+  num_steps: 9
+  k: 1
+  backtrack: 0.5
+  resampling: "linear_filtered"
+  min_steps: 1
+  num_evaluations: 3
+  origin: 2
+
 foa:
   num_agents: 3
   num_steps: 9
@@ -23,16 +45,7 @@ got:
 react:
   num_steps: 10
 
-het_foa:
-  num_agents: 7
-  num_steps: 15
-  k: 1
-  backtrack: 0.5
-  resampling: "linear_filtered"
-  min_steps: 1
-  num_evaluations: 3
-  origin: 2
-  
+
 rap:
   num_iterations: 10
   num_samples: 5

@@ -28,6 +28,7 @@ class EnvironmentGame24(Environment):
             puzzle=state.puzzle,
             current_state=current_state,
             steps=state.steps + [action],
+            t=state.t + 1,
             randomness=randomness,
             reflections=state.reflections,
             value=None
@@ -56,6 +57,29 @@ class EnvironmentGame24(Environment):
 
     @staticmethod
     def evaluate(state: StateGame24) -> Tuple[bool, float]:
+        """
+        Evaluates the current state.
+        """
+        is_final = EnvironmentGame24.is_final(state)
+        if is_final is True and state.steps[-1]:
+            expression = state.steps[-1].lower().replace('answer: ', '').split('=')[0]
+            numbers = re.findall(r'\d+', expression)
+            problem_numbers = re.findall(r'\d+', state.puzzle)
+            if sorted(numbers) != sorted(problem_numbers):
+                return True, 0.0
+            else:
+                try:
+                    correct = simplify(expression) == 24
+                    return True, float(correct)
+                except Exception as e:
+                    return True, 0.0
+
+        else:
+            return False, 0.0
+        
+
+    @staticmethod
+    def cheat_evaluate(state: StateGame24) -> Tuple[bool, float]:
         """
         Evaluates the current state.
         """

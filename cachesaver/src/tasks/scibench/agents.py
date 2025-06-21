@@ -34,7 +34,7 @@ class AgentActSciBench(Agent):
                 problem=state.puzzle,
                 existing_steps=existing_steps,
             )
-        elif (len(state.values) > 0 and state.values[max(state.values)] >= 0.9) or (
+        elif (state.value and state.value >= 0.9) or (
             len(state.steps) > 0 and "answer is" in state.steps[-1].lower()):
             current_prompt=prompts.summary.format(
                 problem=state.puzzle, existing_steps=existing_steps
@@ -51,10 +51,6 @@ class AgentActSciBench(Agent):
             namespace=namespace,
             params=params,
         )
-        
-        for r in responses:
-            print(r)
-            print("---")
 
         # Parse the response
         # proposals = [r.strip().split("\n")[:5] for r in responses]
@@ -98,7 +94,7 @@ class AgentReactSciBench(Agent):
                 reflections=reflection_str,
                 problem=state.puzzle, existing_steps=existing_steps
             )
-        elif (len(state.values) > 0 and state.values[max(state.values)] >= 0.9) or (
+        elif (state.value and state.value >= 0.9) or (
             len(state.steps) > 0 and "answer is" in state.steps[-1].lower()
         ): 
             current_prompt=prompts.summary.format(
@@ -118,9 +114,6 @@ class AgentReactSciBench(Agent):
             params=params,
         )
 
-        for r in responses:
-            print(r)
-            print("---")
         # Parse the response
         proposals = [r.strip().split("\n")[:5] for r in responses]
         proposals = [parse_proposal(r, state.step_n, existing_steps) for r in proposals]
@@ -149,7 +142,7 @@ class AgentBfsSciBench(Agent):
                 reflections=reflection_str,
                 problem=state.puzzle, existing_steps=existing_steps
             )
-        elif (len(state.values) > 0 and state.values[max(state.values)] >= 0.9) or (
+        elif (state.value and state.value >= 0.9) or (
             len(state.steps) > 0 and "answer is" in state.steps[-1].lower()
         ):
             current_prompt=prompts.summary.format(
@@ -196,7 +189,7 @@ class AgentAggregateSciBench(Agent):
         if len(actions) == 0:
             return []
         
-        if (len(state.values) > 0 and state.values[max(state.values)] >= 0.9) or (
+        if (state.value and state.value >= 0.9) or (
             len(state.steps) > 0 and "answer is" in state.steps[-1].lower()
         ):  # some hacky stuff from rest-mcts*
             return actions
@@ -235,9 +228,10 @@ class AgentEvaluateSciBench(Agent):
         params: DecodingParameters,
         cache: dict = None,
     ) -> float:
-
+        if state.value is not None:
+            value = state.value
         # Check if the state is already in the cache
-        if cache is not None and state.current_state in cache:
+        elif cache is not None and state.current_state in cache:
             value = cache[state.current_state]
         else:
             # Format the promp
@@ -246,7 +240,7 @@ class AgentEvaluateSciBench(Agent):
                 [example for example in prompts.examples_evaluate[:num_examples]]
             )
             existing_steps = "\n".join(state.steps) if len(state.steps) > 0 else "None\n"
-            
+
             if state.reflections:
                 reflection_str = "\n\n".join(state.reflections)
                 prompt_template=prompts.evaluate_with_reflect
@@ -278,7 +272,8 @@ class AgentEvaluateSciBench(Agent):
             # Cache the value
             if cache is not None:
                 cache[state.current_state] = value
-            state.values[state.step_n] = value
+
+        state.values[state.step_n] = value
         return value
     
     
@@ -298,11 +293,8 @@ class AgentReflectSciBench(Agent):
         )
         
         scratchpad = state.current_state
-        previous_evaluation_score = state.values[state.step_n-1] if state.step_n > 0 else 0
-        evaluation_score = state.values[state.step_n]
+        evaluation_score = state.value
 
-        logger.info(f"State {state_enumerator.get_id(state)}: Value changed from {previous_evaluation_score} to {evaluation_score}, generating reflection")
-        print(f"State {state_enumerator.get_id(state)}: Value changed from {previous_evaluation_score} to {evaluation_score},generating reflection")
         prompt = prompts.reflect.format(
             examples=examples_str,
             problem=state.puzzle,
@@ -319,10 +311,10 @@ class AgentReflectSciBench(Agent):
         )
 
         reflection_text = responses[0].strip()
-        logger.info(f"Generated reflection for state {state_enumerator.get_id(state)}")
-        print(f"Generated reflection for state {state_enumerator.get_id(state)}")
+
         return reflection_text
-    
+
+
 class AgentTerminalReflectSciBench(StateReturningAgent):
     @staticmethod
     async def act(
@@ -387,7 +379,8 @@ class AgentTerminalReflectSciBench(StateReturningAgent):
             thought_idx += 1
 
         return states
-    
+
+
 class AgentValueReduceReflectSciBench(StateReturningAgent, ValueFunctionRequiringAgent):
     @staticmethod
     async def act(
@@ -399,7 +392,7 @@ class AgentValueReduceReflectSciBench(StateReturningAgent, ValueFunctionRequirin
         params: DecodingParameters,
         value_agent: AgentDict
     ) -> List[str]:
-        actions = await AgentReactSciBench.act(
+        actions = await AgentActSciBench.act(
             model=model,
             state=state,
             n=n,
@@ -424,7 +417,7 @@ class AgentValueReduceReflectSciBench(StateReturningAgent, ValueFunctionRequirin
             if EnvironmentSciBench.is_final(s):
                 failed_states.append(s)
             else:
-                non_terminal_states.append(s)        
+                non_terminal_states.append(s)
         
         # get values for non terminal states
         if len(non_terminal_states) > 0:
@@ -476,10 +469,7 @@ class AgentValueReduceReflectSciBench(StateReturningAgent, ValueFunctionRequirin
         for i in range(num_thoughts):
             old_state_with_thought = state.clone()
             old_state_with_thought.reflections.insert(0, thoughts.pop(0))
-
-            # TODO: Adjust the value of the state after reflection
-            new_value = state.value*1.1 # small increase in value for reflection
-            new_states.append(replace(old_state_with_thought, value=new_value))
+            new_states.append(replace(old_state_with_thought, value=None))
 
         return new_states
 

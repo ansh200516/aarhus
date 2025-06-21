@@ -3,10 +3,12 @@ import random
 from typing import List
 import numpy as np
 import asyncio
+import itertools
+from dataclasses import replace
 
 from . import prompts as prompts
 from .state import StateGame24
-from ...typedefs import Request, Agent, StateReturningAgent, Model, DecodingParameters
+from ...typedefs import Request, Agent, AgentDict, ValueFunctionRequiringAgent, StateReturningAgent, Model, DecodingParameters
 
 from .environment import EnvironmentGame24
 
@@ -377,6 +379,199 @@ class AgentSelfEvaluateGame24(Agent):
         return value
 
 
+class AgentReflectGame24(Agent):
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateGame24,
+        n: int, # Number of responses/actions to generate
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ):
+        num_examples = min(2, len(prompts.examples_reflect))
+        examples_str = "(Example Reflection)\n" + "\n\n(Example Reflection)\n".join(
+        [example for example in prompts.examples_reflect[:num_examples]]
+        )
+        
+        prompt = prompts.reflect.format(
+            examples=examples_str,
+            problem=state.puzzle,
+            steps='\n'.join(state.steps)
+        )
+        
+        responses = await model.request(
+            prompt=prompt,
+            n=1, 
+            request_id=request_id,
+            namespace=namespace,
+            params=params,
+        )
+
+        reflection_text = responses[0].strip()
+        return reflection_text
+        
+
+class AgentTerminalReflectHotpotQA(StateReturningAgent):
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateGame24,
+        n: int, # Number of responses/actions to generate
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> List[str]:
+        actions = await AgentActGame24.act(
+            model=model,
+            state=state,
+            n=n,
+            namespace=namespace,
+            request_id=request_id,
+            params=params,
+        )
+
+        # additional terminal reflection logic
+        states = [EnvironmentGame24.step(state, action) for action in actions]
+
+        reflection_coroutines = []
+        reflected_state_idxs = []
+        for i, s in enumerate(states):
+            if not EnvironmentGame24.is_final(s):
+                continue
+
+            # found a successful state
+            if EnvironmentGame24.evaluate(s)[1] == 1:
+                return [s]
+            
+            # if the state has failed, we need to reflect on it
+            reflection_coroutines.append(
+                AgentReflectGame24.act(
+                    model=model,
+                    state=s,
+                    n=1,
+                    namespace=namespace,
+                    request_id=f"{request_id}-reflect-{i}",
+                    params=params,
+                )
+            )
+
+            reflected_state_idxs.append(i)
+        
+        if len(reflection_coroutines) == 0:
+            return states
+        
+        thoughts = await asyncio.gather(*reflection_coroutines)
+        
+        for i in reflected_state_idxs:
+            states[i] = StateGame24(
+                puzzle=state.puzzle,
+                current_state=state.puzzle,
+                steps=[],
+                t=0,
+                answer=state.answer,
+                docstore=state.docstore,
+                randomness=state.randomness,
+                reflections=[thoughts.pop(0)] + state.reflections,
+                parent=state,
+            )
+
+        return states
+
+
+class AgentValueReduceReflectHotpotQA(StateReturningAgent, ValueFunctionRequiringAgent):
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateGame24,
+        n: int, # Number of responses/actions to generate
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+        value_agent: AgentDict
+    ) -> List[str]:
+        actions = await AgentActGame24.act(
+            model=model,
+            state=state,
+            n=n,
+            namespace=namespace,
+            request_id=request_id,
+            params=params,
+        )
+
+        # additional reflection logic: when value of new states is lower than current state
+        states = [EnvironmentGame24.step(state, action) for action in actions]
+        failed_states = []
+        non_terminal_states = []
+        value_reduced_states = []
+        new_states = []
+
+        for s in states:
+            # return the winning state if it exists
+            if EnvironmentGame24.evaluate(s)[0] == 1:
+                return [s]
+            
+            # add failing states to the list
+            if EnvironmentGame24.is_final(s):
+                failed_states.append(s)
+            else:
+                non_terminal_states.append(s)        
+        
+        # get values for non terminal states
+        if len(non_terminal_states) > 0:
+            value_coroutines = [
+                value_agent["agent"].act(
+                    model=value_agent.get('model') or model,
+                    state=s,
+                    n=value_agent['num_agents'],
+                    namespace=namespace,
+                    request_id=f"{request_id}-value-{i}",
+                    params=value_agent['params'],
+                ) for i, s in enumerate(non_terminal_states)
+            ]
+            values = await asyncio.gather(*value_coroutines)
+            for i in range(len(non_terminal_states)):
+                if values[i] >= state.value:
+                    # if the value of the new state is higher than the current state, keep it
+                    new_states.append(replace(non_terminal_states[i], value=values[i]))
+                else:
+                    value_reduced_states.append(replace(non_terminal_states[i], value=values[i]))
+
+        # get values for failed states
+        if len(failed_states) > 0:
+            for i in range(len(failed_states)):
+                value_reduced_states.append(replace(failed_states[i], value=0))
+        
+        if len(value_reduced_states) == 0:
+            # if no states were reduced, return the new states
+            return new_states
+        
+
+        # reflect on the value reduced states
+        reflection_coroutines = []
+        for i, s in enumerate(value_reduced_states):
+            reflection_coroutines.append(
+                AgentReflectGame24.act(
+                    model=model,
+                    state=s,
+                    n=1,
+                    namespace=namespace,
+                    request_id=f"{request_id}-reflect-{i}",
+                    params=params,
+                )
+            )
+
+        thoughts = await asyncio.gather(*reflection_coroutines)
+        num_thoughts = len(thoughts)
+
+        for i in range(num_thoughts):
+            old_state_with_thought = state.clone()
+            old_state_with_thought.reflections.insert(0, thoughts.pop(0))
+            new_states.append(replace(old_state_with_thought, value=None))
+
+        return new_states
+
+
 def get_current_numbers(state: StateGame24) -> str:
     """
     Returns the current numbers in the state.
@@ -387,8 +582,9 @@ def get_current_numbers(state: StateGame24) -> str:
 
 def get_context(state: StateGame24) -> str:
     context_str = ''
-    if state.context:
-            context_str = f"\nUse the given context as a guideline to solve the problem. Do not mention any usage of the context. Strictly follow the output format guidelines.\nContext: {state.context}\n\n(END OF CONTEXT)\n"
+    if state.reflections:
+        reflections = '\n'.join(state.reflections)
+        context_str = f"\nUse the given context as a guideline to solve the problem. Do not mention any usage of the context. Strictly follow the output format guidelines.\nContext: {reflections}\n\n(END OF CONTEXT)\n"
     return context_str
 
 
@@ -399,3 +595,47 @@ def get_formula(state: StateGame24) -> str:
     else:
         # Should do some error handling here but for the moment we'll take it as it is
         return ""
+
+
+def count_make_24(nums):
+    if len(nums) < 2 or len(nums) > 4:
+        return 0
+
+    seen_expressions = set()
+
+    def dfs(numbers):
+        if len(numbers) == 1:
+            if abs(numbers[0] - 24) < 1e-6:
+                return 1
+            return 0
+
+        count = 0
+        for i in range(len(numbers)):
+            for j in range(len(numbers)):
+                if i == j:
+                    continue
+
+                a, b = numbers[i], numbers[j]
+                rest = [numbers[k] for k in range(len(numbers)) if k != i and k != j]
+
+                operations = []
+                operations.append(a + b)
+                operations.append(a - b)
+                operations.append(b - a)
+                operations.append(a * b)
+                if b != 0:
+                    operations.append(a / b)
+                if a != 0:
+                    operations.append(b / a)
+
+                for result in operations:
+                    count += dfs(rest + [result])
+
+        return count
+
+    total_count = 0
+    unique_permutations = set(itertools.permutations(nums))
+    for perm in unique_permutations:
+        total_count += dfs(list(perm))
+
+    return total_count

@@ -5,7 +5,8 @@ benchmarks=("game24")
 
 # Define methods
 # methods=("foa" "tot" "react" "got" "rap") # =("foa" "tot_bfs" "tot_dfs" "got" "rap" "react" "reflexion" "rafa" "rest_mcts")
-methods=("het_foa")
+# methods=("het_foa")
+methods=("new_algo")
 
 # Define models
 provider="openai"
@@ -13,7 +14,7 @@ model="gpt-4.1-nano"
 
 # Define number of retrials
 retrials=1
-split="mini"
+split="single"
 
 # Delete caches if they exist
 for method in "${methods[@]}"; do

@@ -246,21 +246,16 @@ Input: {input}
 '''
 
 # Reflection prompt for Game24
-reflect = '''You are an advanced reasoning agent that can improve based on self reflection. You will be given a previous reasoning trial where the task was to use numbers and basic arithmetic operations (+ - * /) to obtain 24. In each step, two of the remaining numbers were chosen to obtain a new number. You were unsuccessful in answering the question either because you reached the wrong answer, or you used up your set number of reasoning steps, or your actions were inefficient. In a few sentences, diagnose a possible reason for failure or inefficiency and devise a new, concise, high level plan that aims to mitigate the same failure. Use complete sentences. Also, in the given data, mark each state as 'sure' or 'impossible'. Give 'sure' if the state is correct and can lead to 24 and give 'impossible' if the state is incorrect or illegal. You have been given a specific output format to follow. Strictly follow the output format.
-Output format:
-Diagnosis: <your diagnosis>
-States:
-<Data state 1> <label for state 1 (sure/impossible)>
-<Data state 2> <label for state 2 (sure/impossible)>
-<Data state 3> <label for state 3 (sure/impossible)>
-...
-<Data state n> <label for state n (sure/impossible)>
-(END OF OUTPUT FORMAT)
+reflect = '''You are an advanced reasoning agent that can improve based on self reflection. You will be given a previous reasoning trial where the task was to use numbers and basic arithmetic operations (+ - * /) to obtain 24. In each step, two of the remaining numbers were chosen to obtain a new number. You were unsuccessful in answering the question either because you reached the wrong answer, or you used up your set number of reasoning steps, or your actions were inefficient. In a few sentences, diagnose a possible reason for failure or inefficiency and devise a new, concise, high level plan that aims to mitigate the same failure. Use complete sentences.
 
-Previous trial:
-{previous_trial}
-(END OF PREVIOUS TRIAL)
+Examples:
+{examples}
 
+(END OF EXAMPLES)
+
+Input:
+{problem}
+{steps}
 Output:
 '''
 
@@ -303,3 +298,14 @@ Final answer: {answer}
 
 Is this solution correct? Answer with a single word: Yes or No.
 '''
+
+examples_reflect = [
+'''Example: 
+2 8 8 14
+14 + 2 = 16 (left: 8 8 16)
+8 + 8 = 16 (left: 16 16)
+16 + 16 = 32 (left: 32)
+Diagnosis:
+(16 16) is not a state where I can reaach 24. The numbers are within a reasonable range, but I cannot do any meaningful operation on them to obtain 24. This leads me to believe that my guess of adding the two 8's in (8 8 16) was wrong, since i produced a number too large. I should focus more on operations that keep my numbers from becoming too large to get to 24.
+'''
+]

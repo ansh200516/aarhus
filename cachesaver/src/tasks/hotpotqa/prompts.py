@@ -32,7 +32,7 @@ Below some examples are given. The examples also include the observations after 
 
 (END OF EXAMPLES)
 
-Remember, your task is to find the immediate next thought and action. Answer them in the format given by the examples and mention nothing more.
+Remember, your task is to find the immediate next thought and action. Answer them in the format given by the examples and mention nothing more. Limit your response to only one thought and one action.
 
 Question: {question}
 {current_state}"""
@@ -79,6 +79,32 @@ Question: {question}
 
 Possible Actions:
 """
+
+evaluate_with_reflect = '''Analyze the trajectories of a solution to a question answering
+task. The trajectories are labeled by environmental observations about the situation, thoughts that can reason about the current situation and actions that can be three types: 
+(1) Search[entity]: In this case, your evaluation should be influenced based on whether useful information is found in the resulting observation.
+(2) Lookup[keyword]: ]: In this case, your evaluation should be influenced based on whether useful information is found in the resulting observation.
+(3) Finish[answer]: In this case, your evaluation should be influenced based on whether the answer is correct or not which will be presented in the resulting observation.
+
+Given a question and a trajectory, evaluate its correctness and provide your reasoning and analysis in detail. Focus on the latest available thought, action, and observation. Incomplete trajectories can be correct if the thoughts and actions so far are correct, even if the answer is not found yet. Do not generate additional thoughts or actions. Then at the last line conclude with your value estimation which can be an integer number from 1 to 10.
+
+Below some examples are give.
+
+{examples}
+
+(END OF EXAMPLES)
+
+Remember, your task is to evaluate the correctness of the available thoughts, action, and observation based on your reasoning analysis. Answer in the format given by the examples and mention nothing more. Make sure to indicate the correctness score at the end of your answer in the following format: "Correctness score : <score>".
+
+Question: {question}
+{current_state}
+
+Thoughts:
+{reflections}
+(END OF THOUGHTS)
+
+Evaluation:
+'''
 
 evaluate = '''Analyze the trajectories of a solution to a question answering
 task. The trajectories are labeled by environmental observations about the situation, thoughts that can reason about the current situation and actions that can be three types: 
@@ -521,3 +547,118 @@ Reflection: I got stuck in a loop trying to search for 'The Prince and Me (2004 
 """
 ]
 
+examples_contrast_evaluate = [
+'''Question: Who is the current drummer of the band who did the song "What Lovers Do"?
+
+EXAMPLE_TRAJECTORY_1:
+Action 1: Thought 1: I need to identify the band that performed "What Lovers Do" and then find out who the current drummer of that band is.
+Action 1: Search["What Lovers Do" song]
+Observation 1: "What Lovers Do" is a song by American singer Maroon 5, featuring SZA.
+Thought 2: The band is Maroon 5. Now, I should search for the current drummer of Maroon 5.
+Action 2: Search[Maroon 5 band members]
+Observation 2: As of the latest information, the band Maroon 5's current drummer is Matt Flynn.
+Observation 1: Invalid Action. Valid Actions are Lookup[<topic>], Search[<topic>] and Finish[<answer>].
+
+(END OF EXAMPLE_TRAJECTORY_1)
+
+EXAMPLE_TRAJECTORY_2:
+Action 1: Search[Maroon 5]
+Observation 1: Maroon 5 is an American pop rock band from Los Angeles, California. It consists of lead vocalist and rhythm guitarist Adam Levine, rhythm guitarist and keyboardist Jesse Carmichael, lead guitarist James Valentine, drummer Matt Flynn, keyboardist PJ Morton, and bassist and sampler Sam Farrar. Original members Levine, Carmichael, bassist Mickey Madden, and drummer Ryan Dusick first came together as Kara's Flowers in 1994, while they were in high school.
+After self-releasing their independent album We Like Digging?, the band signed to Reprise Records and released the album The Fourth World in 1997. The album garnered a tepid response, after which the record label dropped the band and the members focused on college. In 2001, the band re-emerged as Maroon 5, pursuing a different direction and adding guitarist Valentine. The band signed with Octone Records, an independent record label with a separate joint venture relationship with J Records and released their debut album Songs About Jane in June 2002. Aided by the hit singles "Harder to Breathe", "This Love" and "She Will Be Loved", the album peaked at number six on the Billboard 200 chart and went quadruple platinum in 2005. In the same year, the band won the Grammy Award for Best New Artist. In 2006, Dusick left the band after suffering from serious wrist and shoulder injuries and was replaced by Matt Flynn.
+The band's second album It Won't Be Soon Before Long was released in May 2007. It debuted at number one on the US Billboard 200 chart and the lead single "Makes Me Wonder", became the band's first number-one single on the Billboard Hot 100. In 2010, the band released their third album Hands All Over, to favorable reviews, re-releasing a year later to include the single "Moves like Jagger", which topped the Billboard Hot 100. In 2012, Carmichael left the group and was replaced by musician PJ Morton, as the band released the fourth album Overexposed, with the song "One More Night", topping the Billboard Hot 100 chart for nine consecutive weeks.
+In 2014, Carmichael rejoined the band alongside Morton to record the fifth album V (roman numeral pronounced "five"), with the band signed to Interscope Records and Levine's own label 222 Records. Following the release of V, it reached number one on the Billboard 200. In 2016, Maroon 5 recruited their long-time collaborator Sam Farrar, as the band continued for the sixth studio album Red Pill Blues, which was released in November 2017. With the addition of Morton and Farrar, the band's lineup increased to seven members. The successful singles of both albums "Sugar" and "Girls Like You" peaked at numbers two and one on the Hot 100 chart respectively. Madden announced his departure from the band in 2020 following his arrest on domestic violence charges, with Farrar becoming their new bassist. The band's seventh album, Jordi, was released in June 2021. Maroon 5 has sold more than 120 million records, making them one of the world's best-selling music artists. In January 2023, it was announced "Moves like Jagger" is the second most downloaded song of all time.
+
+(END OF EXAMPLE_TRAJECTORY_2)
+
+
+Evaluation:
+While both trajectories mention drummers in the band Maroon 5, EXAMPLE_TRAJECTORY_1 also mentions that Matt Flynn is the current drummer, which is correct and is relevant to the question. Hence, EXAMPLE_TRAJECTORY_1 is slightly more promising to deliver the correct answer as compared to EXAMPLE_TRAJECTORY_2.
+Promising Trajectory: EXAMPLE_TRAJECTORY_1
+''',
+
+'''Question: The Walkley Heights suburb is located on land that was the home of a prison built in what year?
+
+EXAMPLE_TRAJECTORY_1:
+Action 1: Thought 1: I need to find information about Walkley Heights and its history, specifically regarding the prison and the year it was built.
+Action 1: Search[Walkley Heights]
+Observation 1: (Result 1 / 1) Walkley Heights is a suburb in Adelaide, South Australia, developed in the early 2000s. There is no mention of a prison there.
+Thought 2: Since the suburb's development is recent, I should look into historical prisons in the area that might have been located there previously.
+Action 2: Search[Prison in Walkley Heights]
+Observation 2: No relevant results found. I will try a broader search.
+Action 3: Search[Prison in Adelaide, South Australia]
+Observation 3: The South Australian state prison was established in 1838, located in Adelaide. The original prison was the South Australian House of Correction.
+Thought 4: The prison built in 1838 is significant, and perhaps the land was previously used for that prison before the suburb was developed.
+Action 4: Lookup[South Australian House of Correction]
+Observation 4: The South Australian House of Correction was built in 1838 and operated until 1862, after which a new prison was built.
+Thought 5: The original prison was built in 1838, which aligns with the question about the prison's construction year.
+
+(END OF EXAMPLE_TRAJECTORY_1)
+
+EXAMPLE_TRAJECTORY_2:
+Action 1: Search[Walkley Heights]
+Observation 1: Walkley Heights is a suburb of Adelaide, South Australia. The suburb is located on land formerly comprising the prison farm for Yatala Labour Prison, and includes fifty-five hectares of land formerly owned by R. M. Williams which was compulsorily acquired during the time of former State Premier Sir Thomas Playford. The suburb (and one adjacent main road) is named after John Walkley, an early pioneer in South Australia
+The suburb had a population, in 2001, of only 713 increasing to 3,497 by 2016.
+
+(END OF EXAMPLE_TRAJECTORY_2)
+
+Evaluation:
+EXAMPLE_TRAJECTORY_1 follows a good logical deduction sequence but incorrect inferences are made. The trajectory assumes that the South Australian state prison is the only possible option without correlating it back to Walkey Heights, unlike EXAMPLE_TRAJECTORY_2. In EXAMPLE_TRAJECTORY_2, we observe factual data about Walkey Heights which clearly mentions that it is located on the land formerly comprising of Yatala Labour Prison. This is a much more grounded inference and will give very promising results after looking more into the Yatala Labour Prison. Hence, EXAMPLE_TRAJECTORY_2 is much more promising than EXAMPLE_TRAJECTORY_1.
+Promising Trajectory: EXAMPLE_TRAJECTORY_2
+'''
+]
+
+################################
+###--Contrastive Evaluation--###
+################################
+
+contrast_evaluate = '''Analyze the given trajectories of a solution to a question answering task. The trajectories are labeled by environmental observations about the situation, thoughts that can reason about the current situation and actions that can be three types: 
+(1) Search[entity]: In this case, your evaluation should be influenced based on whether useful information is found in the resulting observation.
+(2) Lookup[keyword]: In this case, your evaluation should be influenced based on whether useful information is found in the resulting observation.
+(3) Finish[answer]: In this case, your evaluation should be influenced based on whether the answer is correct or not which will be presented in the resulting observation.
+
+Given a question and two trajectories, evaluate their logical correctness against each other and provide your reasoning and analysis in detail. Focus on the available thoughts, actions, and observations. Incomplete trajectories can be correct if the thoughts and actions so far are correct, even if the answer is not found yet. Prioritize ground truths over anything else. Trajectories that lay a correct roadmap to solve the question without providing much information may be more promising compared to trajectories that provide a lot of information but don't link it back to the question and/or create incorrect inferences/assumptions. Do not generate additional thoughts or actions. Then at the last line conclude with your evaluation and analysis by stating which trajectory is more promising.
+
+Below some examples are given.
+
+{examples}
+
+(END OF EXAMPLES)
+
+Remember, your task is to evaluate the correctness of the latest available thoughts (if available), actions, and observations for both trajectories based on your reasoning analysis and provide a comparison between the two. Answer in the format given by the examples and mention nothing more. Do not generate additional thoughts or actions. Make sure to report the more promising trajectory at the end of your answer in the following format: "Promising Trajectory : <trajectory_id>".
+
+Question: {question}
+
+TRAJECTORY_1 (ID=1):
+{cs_1}
+Thoughts generated:
+{reflections_1}
+
+(END OF TRAJECTORY_1)
+
+TRAJECTORY_2 (ID=2):
+{cs_2}
+Thoughts generated:
+{reflections_2}
+
+(END OF TRAJECTORY_2)
+
+Evaluation:
+'''
+
+certainty = '''You are an expert at analyzing reasoning traces. Analyze the given trace for a task and report the information score for it, on a scale of 1-10. The information score is the amount of information present in the reasoning trace that is grounded and relevant to solving the problem. If you think there is enough relevant, grounded information in the trace in order to solve the problem then give a high score. If there is abscence of grounded relevant information then give a low score. If there is some relevant information available, but more information is needed to solve the problem then give it a moderate score. Information irrelevant to the task at hand should incurr a penlty to the score. I will also give you grounded information to verify the trace against.
+The traces are labeled by environmental observations about the situation (which need to be verified against the grounded information that will also be provided), thoughts that can reason about the current situation and also reflect back and steer the trace into the correct direction, and actions that can be three types: 
+(1) Search[entity]: In this case, your evaluation should be influenced based on whether useful information is found in the resulting observation.
+(2) Lookup[keyword]: ]: In this case, your evaluation should be influenced based on whether useful information is found in the resulting observation.
+(3) Finish[answer]: In this case, your evaluation should be influenced based on whether the answer is correct or not which will be presented in the resulting observation.
+
+Given a question, a trace and grounded information, evaluate if there is enough information in the trace to solve the problem and assign it a score from 1-10 along with detailed analysis. Do not generate additional thoughts or actions. Then at the last line conclude with your information score estimation which can be an integer number from 1 to 10. Explicily state what the information score is by saying "the information score is ..."
+
+Grounded Information:
+{grounded_observations}
+(END OF GROUNDED INFORMATION)
+
+Question: {question}
+{current_state}
+
+Evaluation:
+'''

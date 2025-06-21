@@ -1,12 +1,24 @@
+new_algo:
+  width: 6
+  num_steps: 6
+  max_value: 10
+  k: 1
+  alpha: 0.2
+  backtrack: 0.5
+  resampling: "linear_filtered"
+  min_steps: 1
+  num_evaluations: 3
+  origin: 13.333
+
 het_foa:
   num_agents: 3
-  num_steps: 6
+  num_steps: 9
   k: 1
   backtrack: 0.5
   resampling: "linear_filtered"
   min_steps: 1
   num_evaluations: 3
-  origin: 20
+  origin: 13.333
 
 foa:
   num_agents: 5

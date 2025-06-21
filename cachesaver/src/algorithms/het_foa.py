@@ -1,6 +1,7 @@
 import random
 import logging
 import asyncio
+import numpy as np
 from typing import TypedDict, Optional
 from dataclasses import replace
 from ..typedefs import Algorithm, Model, AgentDict, Agent, StateReturningAgent, ValueFunctionRequiringAgent, ValueFunctionUsingAgent, Environment, DecodingParameters, State, Benchmark, MAX_SEED
@@ -52,6 +53,8 @@ class AlgorithmHeterogenousFOA(Algorithm):
         self.min_steps = min_steps
         self.num_evaluations = num_evaluations
         self.input_state_values = []
+        self.output_state_values = []
+        self.priors = np.ones((self.num_steps, len(self.step_agents))) / len(self.step_agents)
 
         logger.info('#################################################################')
 
@@ -144,7 +147,6 @@ class AlgorithmHeterogenousFOA(Algorithm):
         # set the value of inital state
         state = replace(state, value=self.origin*self.backtrack*self.backtrack)
 
-
         # log all agents
         logger.info(f'het_foa_logs-{idx}-fleet: {log_agents(self.step_agents)}')
 
@@ -163,6 +165,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
             self.step_agents[i]['agent'] = self._wrap_agent(agent_class)
         
         solved = False
+        terminal_states = []
         for step in range(self.num_steps):
             print(f"Step {step} ({idx})")
 
@@ -181,6 +184,7 @@ class AlgorithmHeterogenousFOA(Algorithm):
 
             # prepare data for backtracking agent
             self.input_state_values = [state.value for state in states]
+            self.output_state_values = [0] * len(states)
 
             # Generate actions for each state
             agent_coroutines = [
@@ -201,9 +205,10 @@ class AlgorithmHeterogenousFOA(Algorithm):
             
 
             logger.info(f"het_foa_logs-{idx}-{step}-agentouts: {log_states(states)}")
-            logger.info(f"het_foa_logs-{idx}-{step}-statewins: {[self.env.evaluate(s)[1] == 1 for s in states]}")
+            # TODO: Change this
+            logger.info(f"het_foa_logs-{idx}-{step}-statewins: {[self.env.cheat_evaluate(s)[1] == 1 for s in states]}")
 
-            # Early stop in case any state is solved
+            # Early stop in case any state is solved (not used in all envs)
             if any(self.env.evaluate(state)[1] == 1 for state in states):
                 solved = True
                 print(f'Problem ({idx}) solved at step {step+1}')
@@ -214,16 +219,17 @@ class AlgorithmHeterogenousFOA(Algorithm):
             visited_states = [(identifier, value*self.backtrack, state) for identifier, value, state in visited_states]
             visited_states = [state for state in visited_states if  remaining_steps >= self.min_steps - len(state[2].steps)]
 
-            # Pruning : Failed = Finished not correctly
-            failed = [i for i, state in enumerate(states) if self.env.is_final(state)]
+            # Pruning : Finished States
+            finished = [i for i, state in enumerate(states) if self.env.is_final(state)]
+            terminal_states.extend([states[i] for i in finished])
 
             logger.info(f"het_foa_logs-{idx}-{step}-statefails: {[self.env.is_final(s) for s in states]}")
 
             if visited_states != []:
-                replacements, _ = resampler.resample(visited_states.copy(), len(failed), self.resampling)
+                replacements, _ = resampler.resample(visited_states.copy(), len(finished), self.resampling)
             else:
-                replacements, _ = resampler.resample([("", 1, state) for state in states], len(failed), resampling_method="linear")
-            states = [replacements.pop(0) if i in failed else state for i, state in enumerate(states)]
+                replacements, _ = resampler.resample([("", 1, state) for state in states], len(finished), resampling_method="linear")
+            states = [replacements.pop(0) if i in finished else state for i, state in enumerate(states)]
 
 
             logger.info(f'het_foa_logs-{idx}-{step}-agentreplacements: {log_states(states)}')
@@ -235,14 +241,14 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 value_coroutines = [
                     self.eval_agent.act(
                         model=self.model,
-                        state=state,
+                        state=s,
                         n=self.num_evaluations,
                         namespace=namespace,
-                        request_id=f"idx{idx}-evaluation{step}-{hash(state)}-agent{i}",
+                        request_id=f"idx{idx}-evaluation{step}-{hash(s)}-agent{i}",
                         params=self.eval_params,
                         cache=value_cache
                     )
-                    for i, state in enumerate(states)
+                    for i, s in enumerate(states)
                 ]
                 values = await asyncio.gather(*value_coroutines)
 
@@ -251,18 +257,14 @@ class AlgorithmHeterogenousFOA(Algorithm):
                 
                 for i, value in enumerate(values):
                     states[i] = replace(states[i], value=value)
-
-                    # TODO: REMOVE
-                    if DEBUG:
-                        print(f'value assigned to state {hash(states[i])}: {value}')
-
-                    if i not in failed:
+                    if i not in finished:
                         visited_states.append((f"{i}.{step}", value, states[i]))
 
                 # Resampling
                 states, resampled_idxs = resampler.resample(visited_states, self.num_agents, self.resampling)
 
         return states
+
 
     async def benchmark(self, benchmark: Benchmark, share_ns: bool=False, cache: bool=True):
         cache = {} if cache else None

@@ -6,6 +6,7 @@ benchmarks=("hotpotqa")
 # Define methods
 # methods=("react" "rap")
 methods=("het_foa")
+# methods=("new_algo")
 
 # Define models
 provider="openai"

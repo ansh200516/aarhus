@@ -1,16 +1,22 @@
 import re
 import random
+import string
 from urllib import response
 import numpy as np
 from typing import List, Tuple
 import itertools
 import asyncio
 from dataclasses import replace
+from langchain.agents.react.base import DocstoreExplorer
 
 from . import prompts as prompts
 from .environment import EnvironmentHotpotQA
 from .state import StateHotpotQA
 from ...typedefs import AgentDict, Agent, StateReturningAgent, ValueFunctionRequiringAgent, Model, DecodingParameters
+
+
+OBS_CORRECT = "Answer is CORRECT."
+OBS_INCORRECT = "Answer is INCORRECT."
 
 
 class AgentActHotpotQA(Agent):
@@ -345,9 +351,16 @@ class AgentEvaluateHotpotQA(Agent):
         examples = "(Example)\n" + "\n\n(Example)\n".join(
             [example for example in prompts.examples_evaluate[:num_examples]]
         )
-        prompt = prompts.evaluate.format(
-            examples=examples, question=state.puzzle, current_state=state.current_state
-        )
+
+        if len(state.reflections) > 0:
+            prompt = prompts.evaluate_with_reflect.format(
+                examples=examples, question=state.puzzle, current_state=state.current_state,
+                reflections='\n\n'.join(state.reflections)
+            )
+        else:
+            prompt = prompts.evaluate.format(
+                examples=examples, question=state.puzzle, current_state=state.current_state
+            )
 
         # Generate the responses
         responses = await model.request(
@@ -376,7 +389,75 @@ class AgentEvaluateHotpotQA(Agent):
         if cache is not None:
             cache[state.current_state] = value
         
-        return value
+        return value#, responses # TODO: CHANGE THIS
+
+
+class AgentEvaluateUncertaintyHotpotQA(Agent):
+    """
+    Agent performing the Evaluate operation for the HotpotQA task.
+    """
+
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateHotpotQA,
+        n: int,
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+        cache: dict = None,
+    ) -> float:
+        """
+        Returns an evaluations for the HotpotQA task.
+        """
+        # Check if the state is already in the cache
+        if cache is not None and state.current_state in cache:
+            return cache[state.current_state]
+
+        if state.uncertainty is not None:
+            return state.uncertainty        
+
+        pattern = r'\b(Search|Lookup)\[(.*?)\]'
+        matches = re.findall(pattern, state.current_state)
+        grounded_obs = ''
+        for func, args in matches:
+            obs = perform_action(state.docstore, func, args, state.answer)
+            grounded_obs += f'{func}[{args}]: {obs}\n\n'
+
+        prompt = prompts.certainty.format(
+            grounded_observations=grounded_obs,
+            question=state.puzzle,
+            current_state=state.current_state
+        )
+
+        # Generate the responses
+        responses = await model.request(
+            prompt=prompt,
+            n=n,
+            request_id=request_id,
+            namespace=namespace,
+            params=params,
+        )
+
+        # Parse the responses
+        values = []
+        pattern = r"\b(?:information[\s_]?score|score for information|information)\b(?:\s*(?:is|=|:|was|stands at|of))?\s*(-?\d+(?:\.\d+)?)"
+
+        for response in responses:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                value = float(match.group(1))
+            else:
+                # print(f"Unable to parse value from response : {response}")
+                value = 1
+            values.append(value)
+        value = sum(values) / len(values) if values else 0
+
+        # Cache the value
+        if cache is not None:
+            cache[state.current_state] = value
+        
+        return 10 - value  #, responses # TODO: CHANGE THIS
 
 
 class AgentReflectHotpotQA(Agent):
@@ -470,6 +551,7 @@ class AgentTerminalReflectHotpotQA(StateReturningAgent):
                 puzzle=state.puzzle,
                 current_state=state.puzzle,
                 steps=[],
+                t=0,
                 answer=state.answer,
                 docstore=state.docstore,
                 randomness=state.randomness,
@@ -534,14 +616,14 @@ class AgentValueReduceReflectHotpotQA(StateReturningAgent, ValueFunctionRequirin
             for i in range(len(non_terminal_states)):
                 if values[i] >= state.value:
                     # if the value of the new state is higher than the current state, keep it
-                    new_states.append(replace(non_terminal_states[i], value=values[i]))
+                    new_states.append(replace(non_terminal_states[i], value=values[i], uncertainty=None))
                 else:
-                    value_reduced_states.append(replace(non_terminal_states[i], value=values[i]))
+                    value_reduced_states.append(replace(non_terminal_states[i], value=values[i], uncertainty=None))
 
         # get values for failed states
         if len(failed_states) > 0:
             for i in range(len(failed_states)):
-                value_reduced_states.append(replace(failed_states[i], value=0))
+                value_reduced_states.append(replace(failed_states[i], value=0, uncertainty=None))
         
         if len(value_reduced_states) == 0:
             # if no states were reduced, return the new states
@@ -568,7 +650,7 @@ class AgentValueReduceReflectHotpotQA(StateReturningAgent, ValueFunctionRequirin
         for i in range(num_thoughts):
             old_state_with_thought = state.clone()
             old_state_with_thought.reflections.insert(0, thoughts.pop(0))
-            new_states.append(replace(old_state_with_thought, value=None))
+            new_states.append(replace(old_state_with_thought, value=None, uncertainty=None))
 
         return new_states
 
@@ -593,3 +675,28 @@ def join_matches(matches) -> List[str]:
     if isinstance(matches[0], str):
         matches = [matches]
     return ["".join(match) for match in matches]
+
+def perform_action(docstore: DocstoreExplorer, action_type: str, argument: str, answer: str) -> str:
+    if action_type == "Search":
+        try:
+            # Added '' around the argument. Not in reflexion. After some (small) testing, it seems to be equal or better.
+            obs = docstore.search(f"\'{argument}\'").strip("\n").strip()
+        except Exception as e:
+            #print(f"Error searching for '{argument}'")
+            obs = 'Page does not exist, try something else.'
+    elif action_type == "Lookup":
+        try:
+            obs = docstore.lookup(argument).strip('\n').strip()
+        except Exception as e:
+            #print(f"Error looking up '{argument}'")
+            obs = 'The last page Searched was not found, so you cannot Lookup a keyword in it. Please try one of the similar pages given in the previous observation.'
+    
+    elif action_type == "Finish":
+        if argument.lower().strip(string.punctuation+" ") == answer.lower().strip(string.punctuation+" "):
+            obs = OBS_CORRECT
+        else:
+            obs = OBS_INCORRECT
+
+    else:
+        obs = 'Invalid Action. Valid Actions are Lookup[<topic>], Search[<topic>] and Finish[<answer>].'
+    return obs
