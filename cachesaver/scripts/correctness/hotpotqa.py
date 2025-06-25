@@ -21,20 +21,30 @@ from src.models import OnlineLLM, API
 from src.typedefs import DecodingParameters
 from src.tasks.hotpotqa import *
 
-def build_method(method_name: str, params: DecodingParameters, api: API, config: OmegaConf):
+def build_method(method_name: str, params: DecodingParameters, params2: DecodingParameters, params3: DecodingParameters, params4: DecodingParameters, api: API, api2: API, config: OmegaConf):
 # Setup the method
     if method_name == "new_algo":
+        # agent_types = [AgentActHotpotQA, AgentReactHotpotQA, AgentValueReduceReflectHotpotQA]
+        # parameters = [params, params2, params3, params4]
+        # models = [api, api2]
+
+        # step_agents = []
+
+        # for agent_type in agent_types:
+        #     for p in parameters:
+        #         for m in models:
+        #             step_agents.append({
+        #                 "agent": agent_type,
+        #                 "params": p,
+        #                 "model": m,
+        #                 "num_agents": 1
+        #             })
+
+
         step_agents = []
 
-        # build the fleet of agents here
         step_agents.append({
             "agent": AgentActHotpotQA,
-            "params": params,
-            "num_agents": 1,
-        })
-
-        step_agents.append({
-            "agent": AgentValueReduceReflectHotpotQA,
             "params": params,
             "num_agents": 1,
         })
@@ -45,10 +55,21 @@ def build_method(method_name: str, params: DecodingParameters, api: API, config:
             "num_agents": 1,
         })
 
-        agents = AgentDictHeterogenousFOA(
+        step_agents.append({
+            "agent": AgentValueReduceReflectHotpotQA,
+            "params": params,
+            "num_agents": 1,
+        })
+
+        agents = AgentDictNewAlgo(
             evaluate=AgentEvaluateHotpotQA,
             eval_params=params,
-            step_agents=step_agents
+            step_agents=step_agents,
+            difficulty_agent={
+                "agent": AgentEvaluateDifficultyHotpotQA,
+                "num_agents": 5,
+                "params": params
+            }
         )
 
         logger.info(f"Using these agents for New Algo:")
@@ -240,20 +261,57 @@ async def run(args, trial, cache_path):
         model=args.model
     )
 
+    api2 = API(
+        pipeline=OnlineAPI(
+            model=OnlineLLM(client=AsyncOpenAI()),
+            cache=cache,
+            batch_size=args.batch_size,
+            timeout=args.timeout,
+            allow_batch_overflow=True,
+            correctness=bool(args.correctness)
+        ),
+        model='gpt-4o-mini'
+    )
+
     # Decoding parameters
-    params = DecodingParameters(
-        temperature=args.temperature,
+    params1 = DecodingParameters(
+        temperature=0.25,
         max_completion_tokens=args.max_completion_tokens,
         top_p=args.top_p,
         stop=args.stop,
         logprobs=args.logprobs
     )
 
+    params2 = DecodingParameters(
+        temperature=0.5,
+        max_completion_tokens=args.max_completion_tokens,
+        top_p=args.top_p,
+        stop=args.stop,
+        logprobs=args.logprobs
+    )
+
+    params3 = DecodingParameters(
+        temperature=0.75,
+        max_completion_tokens=args.max_completion_tokens,
+        top_p=args.top_p,
+        stop=args.stop,
+        logprobs=args.logprobs
+    )
+
+    params4 = DecodingParameters(
+        temperature=1,
+        max_completion_tokens=args.max_completion_tokens,
+        top_p=args.top_p,
+        stop=args.stop,
+        logprobs=args.logprobs
+    )
+
+
     # Config for framework hyperpaarameters
     config = OmegaConf.load(args.conf_path)
 
     # Build the method
-    method = build_method(args.method, params, api, config)
+    method = build_method(args.method, params1, params2, params3, params4, api, api2, config)
 
     # Load the dataset
     benchmark = BenchmarkHotpotQA(path=args.dataset_path, split=args.split)

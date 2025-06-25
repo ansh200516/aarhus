@@ -4,7 +4,7 @@
 benchmarks=("scibench") 
 
 # Define methods
-methods=("het_foa") # =("foa" "tot_bfs" "tot_dfs" "got" "rap" "react" "reflexion" "rafa" "rest_mcts")
+methods=("new_algo") # =("foa" "tot_bfs" "tot_dfs" "got" "rap" "react" "reflexion" "rafa" "rest_mcts")
 
 # Define tasks
 tasks=("100")
@@ -14,7 +14,7 @@ provider="openai"
 model="gpt-4.1-nano"
 
 # Define number of retrials
-retrials=1
+retrials=3
 split="mini"
 
 # Delete caches if they exist

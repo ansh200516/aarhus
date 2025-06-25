@@ -1,8 +1,8 @@
 new_algo:
-  width: 3
+  width: 4
   num_steps: 9
   max_value: 1
-  k: 0
+  k: 1
   alpha: 5
   backtrack: 0.5
   resampling: "linear_filtered"
@@ -11,7 +11,7 @@ new_algo:
   origin: 2
 
 het_foa:
-  num_agents: 3
+  num_agents: 4
   num_steps: 9
   k: 1
   backtrack: 0.5

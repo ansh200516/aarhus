@@ -392,6 +392,58 @@ class AgentEvaluateHotpotQA(Agent):
         return value#, responses # TODO: CHANGE THIS
 
 
+class AgentEvaluateDifficultyHotpotQA(Agent):
+
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateHotpotQA,
+        n: int,
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> float:
+        """
+        Returns a difficulty value for the given state
+        """
+        prompt = prompts.evaluate_difficulty.format(input=state.puzzle)
+
+        # Format the request
+        responses = await model.request(
+            prompt=prompt,
+            n=n,
+            request_id=request_id,
+            namespace=namespace,
+            params=params,
+        )
+
+        values = []
+        pattern = r"Difficulty(?:\s+Score)?\s*:\s*([0-9]*\.?[0-9]+)"
+
+        for response in responses:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match and match.group(1):
+                value = float(match.group(1))
+            else:
+                value = 3
+            values.append(value)
+        value = sum(values) / len(values) if values else 3
+
+        d1 = abs(2-value)
+        d3 = abs(3-value)
+        d5 = abs(4-value)
+
+        rating = 0
+        if d1 == min(d1, d3, d5):
+            rating = 1
+        elif d3 == min(d1, d3, d5):
+            rating = 3
+        else:
+            rating = 5
+
+        return rating
+
+
 class AgentEvaluateUncertaintyHotpotQA(Agent):
     """
     Agent performing the Evaluate operation for the HotpotQA task.

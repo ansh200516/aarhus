@@ -213,6 +213,86 @@ class AgentEvaluateGame24(Agent):
         return value
 
 
+class AgentEvaluateObjectiveDifficultyGame24(Agent):
+
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateGame24,
+        n: int,
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> float:
+        ways = count_make_24(list(map(int, state.puzzle.split()))) / 1000
+        
+        # 4 to 15, 6.75-->5, 9.5-->3, 12.25--> 1
+        dist_1 = abs(13 - ways)
+        dist_2 = abs(9.5 - ways)
+        dist_3 = abs(6 - ways)
+
+        if dist_1 == min(dist_1, dist_2, dist_3):
+            diff = 1
+        elif dist_2 == min(dist_1, dist_2, dist_3):
+            diff = 3
+        else:
+            diff = 5
+
+        return diff
+
+
+class AgentEvaluateDifficultyGame24(Agent):
+
+    @staticmethod
+    async def act(
+        model: Model,
+        state: StateGame24,
+        n: int,
+        namespace: str,
+        request_id: str,
+        params: DecodingParameters,
+    ) -> float:
+        """
+        Returns a difficulty value for the given state
+        """
+        prompt = prompts.evaluate_difficulty.format(input=state.puzzle)
+
+        # Format the request
+        responses = await model.request(
+            prompt=prompt,
+            n=n,
+            request_id=request_id,
+            namespace=namespace,
+            params=params,
+        )
+
+        values = []
+        pattern = r"Difficulty(?:\s+Score)?\s*:\s*([0-9]*\.?[0-9]+)"
+
+        for response in responses:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match and match.group(1):
+                value = float(match.group(1))
+            else:
+                value = 3
+            values.append(value)
+        value = sum(values) / len(values) if values else 3
+
+        d1 = abs(1-value)
+        d3 = abs(3-value)
+        d5 = abs(5-value)
+
+        rating = 0
+        if d1 == min(d1, d3, d5):
+            rating = 1
+        elif d3 == min(d1, d3, d5):
+            rating = 3
+        else:
+            rating = 5
+
+        return rating
+
+
 class AgentReactGame24(Agent):
     """
     Agent for React algorithm

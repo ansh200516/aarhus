@@ -309,3 +309,16 @@ Diagnosis:
 (16 16) is not a state where I can reaach 24. The numbers are within a reasonable range, but I cannot do any meaningful operation on them to obtain 24. This leads me to believe that my guess of adding the two 8's in (8 8 16) was wrong, since i produced a number too large. I should focus more on operations that keep my numbers from becoming too large to get to 24.
 '''
 ]
+
+
+
+evaluate_difficulty = '''Evaluate how difficult it is to reach 24 using given numbers by giving a difficulty rating from 1-5. Follow the format given below:
+
+Format:
+Thought: <your thoughts>
+Difficulty: <difficulty score between 1-5>
+
+Please note that you are not supposed to inlucde the "<" and ">". Strictcly follow the output format. Be accurate and precise in your thoughts.
+
+Input: {input}
+'''

@@ -5,15 +5,15 @@ benchmarks=("hotpotqa")
 
 # Define methods
 # methods=("react" "rap")
-methods=("het_foa")
-# methods=("new_algo")
+# methods=("het_foa")
+methods=("new_algo")
 
 # Define models
 provider="openai"
 model="gpt-4.1-nano"
 
 # Define number of retrials
-retrials=1
+retrials=3
 split="mini"
 
 # Delete caches if they exist

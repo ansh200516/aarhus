@@ -1,6 +1,6 @@
 new_algo:
-  width: 6
-  num_steps: 6
+  width: 4
+  num_steps: 9
   max_value: 10
   k: 1
   alpha: 0.2
@@ -11,7 +11,7 @@ new_algo:
   origin: 13.333
 
 het_foa:
-  num_agents: 3
+  num_agents: 4
   num_steps: 9
   k: 1
   backtrack: 0.5

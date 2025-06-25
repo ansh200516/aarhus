@@ -5,4 +5,4 @@ from .tot_dfs import AgentDictTOT, AlgorithmTOT_DFS
 from .got import AgentDictGOT, AlgorithmGOT
 from .rap import AlgorithmRAP, AgentDictRAP
 from .react import AgentDictReact, AlgorithmReact
-from .new_algo import AlgorithmNewAlgo, AlgorithmNewAlgoV2
+from .new_algo import AlgorithmNewAlgo, AgentDictNewAlgo
