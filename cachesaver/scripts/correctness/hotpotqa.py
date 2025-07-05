@@ -330,7 +330,7 @@ async def run(args, trial, cache_path):
     for result in results:
         evaluations = sorted([EnvironmentHotpotQA.evaluate(state) for state in result], key=lambda x: x[1])
         finished.append(False if len(evaluations) == 0 else evaluations[-1][0])
-        correct.append(1.0 if len(evaluations) == 0 else evaluations[-1][1])
+        correct.append(0.0 if len(evaluations) == 0 else evaluations[-1][1])
     perc_finished = sum(finished) / len(finished)
     perc_correct = sum(correct) / len(correct)
     costs = {key:tokens2cost(api.tokens[key], args.model)["total"] for key in api.tokens.keys()}

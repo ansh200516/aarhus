@@ -21,55 +21,60 @@ from src.models import OnlineLLM, API
 from src.typedefs import DecodingParameters
 from src.tasks.game24 import *
 
+
+def get_step_agents(multi_agents, agent_types, parameters, models, params):
+    step_agents = []
+    if multi_agents:
+
+        for agent_type in agent_types:
+            for p in parameters:
+                for m in models:
+                    step_agents.append({
+                        "agent": agent_type,
+                        "params": p,
+                        "model": m,
+                        "num_agents": 1
+                    })
+        return step_agents
+
+
+    # build the fleet of agents here
+    step_agents.append({
+        "agent": AgentActGame24,
+        "params": params,
+        "num_agents": 1,
+    })
+
+    step_agents.append({
+        "agent": AgentReactGame24,
+        "params": params,
+        "num_agents": 1,
+    })
+
+    return step_agents
+
+
 def build_method(method_name: str, params: DecodingParameters, params2: DecodingParameters, params3: DecodingParameters, params4: DecodingParameters, api: API, api2: API, config: OmegaConf):
     # Setup the method
     if method_name == "new_algo":
         step_agents = []
 
-        # build the fleet of agents here
-        step_agents.append({
-            "agent": AgentActGame24,
-            "params": params,
-            "num_agents": 1,
-        })
+        # create all agents
+        agent_types = [AgentActGame24, AgentReactGame24]
+        parameters = [params, params2, params3, params4]
+        models = [api, api2]
 
-        # step_agents.append({
-        #     "agent": AgentValueReduceReflectHotpotQA,
-        #     "params": params,
-        #     "num_agents": 1,
-        # })
-
-        step_agents.append({
-            "agent": AgentReactGame24,
-            "params": params,
-            "num_agents": 1,
-        })
-
-
-        # # create all agents
-        # agent_types = [AgentActGame24, AgentReactGame24]
-        # parameters = [params, params2, params3, params4]
-        # models = [api, api2]
-
-        # step_agents = []
-
-        # for agent_type in agent_types:
-        #     for p in parameters:
-        #         for m in models:
-        #             step_agents.append({
-        #                 "agent": agent_type,
-        #                 "params": p,
-        #                 "model": m,
-        #                 "num_agents": 1
-        #             })
+        # False -> only use act and react
+        # True -> Use all permutations of models, temps, and agents
+        step_agents = get_step_agents(False, agent_types, parameters, models, params)
 
         agents = AgentDictNewAlgo(
             evaluate=AgentEvaluateGame24,
             eval_params=params,
             step_agents=step_agents,
             difficulty_agent={
-                "agent": AgentEvaluateObjectiveDifficultyGame24,
-                "num_agents": 1,
+                "agent": AgentEvaluateDifficultyGame24,
+                "num_agents": 5,
                 "params": params
             }
         )
@@ -326,10 +331,11 @@ async def run(args, trial, cache_path):
 
     finished = []
     correct = []
+
     for result in results:
         evaluations = sorted([EnvironmentGame24.evaluate(state) for state in result], key=lambda x: x[1])
         finished.append(False if len(evaluations) == 0 else evaluations[-1][0])
-        correct.append(1.0 if len(evaluations) == 0 else evaluations[-1][1])
+        correct.append(0.0 if len(evaluations) == 0 else evaluations[-1][1])
     perc_finished = sum(finished) / len(finished)
     perc_correct = sum(correct) / len(correct)
     costs = {key:tokens2cost(api.tokens[key], args.model)["total"] for key in api.tokens.keys()}

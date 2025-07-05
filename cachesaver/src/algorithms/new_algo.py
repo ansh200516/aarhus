@@ -66,8 +66,9 @@ class AlgorithmNewAlgo(Algorithm):
         # turn features on and off by setting bool values
         self.features = {
             'updating_priors': True,
-            'difficulty_based_width_init': True,
-            'runtime_width_adaptation': True
+            'difficulty_based_width_init': False,
+            'runtime_width_adaptation': True,
+            'skewed_state_detection': True
         }
 
         logger.info('#################################################################')
@@ -219,9 +220,9 @@ class AlgorithmNewAlgo(Algorithm):
         logger.info(log)
 
 
-    def _log_end(self, idx):
+    def _log_end(self):
         log = json.dumps({
-            f'{self.env.__name__}-{idx}-end': {
+            f'{self.env.__name__}-end': {
                 'priors': self.priors.tolist()
             }
         })
@@ -376,22 +377,51 @@ class AlgorithmNewAlgo(Algorithm):
         return new_states
 
 
+    def resample_states(self, resampler, states, new_states, visited_states, terminal_idxs, step, width):
+        # Filter previously visited states records
+        remaining_steps = self.num_steps - (step + 1)
+        visited_states = [(identifier, value*self.backtrack, state) for identifier, value, state in visited_states]
+        visited_states = [state for state in visited_states if  remaining_steps >= self.min_steps - len(state[2].steps)]
+
+        # replace the terminal states with old ones
+        if visited_states != []:
+            replacements, _ = resampler.resample(visited_states.copy(), len(terminal_idxs), self.resampling)
+        else:
+            replacements, _ = resampler.resample([("", state.value, state) for state in states], len(terminal_idxs), resampling_method="linear")
+        states = [replacements.pop(0) if i in terminal_idxs else state for i, state in enumerate(new_states)]
+
+        # resampling
+        for i in range(len(new_states)):
+            if i not in terminal_idxs:
+                visited_states.append((f"{i}.{step}", states[i].value, states[i]))
+        states, _ = resampler.resample(visited_states, width, self.resampling)
+
+        return states, visited_states
+
+
     '''
     POPULATION SIZE METHODS
     '''
 
-    def update_width(self, states, new_states, width):
+    def update_width(self, states, new_states, visited_states, resampler, terminal_idxs, step):
+        width = len(states)
         if not self.features['runtime_width_adaptation']:
             return width
         
+        resampled_out_states, _ = self.resample_states(resampler, states, new_states, visited_states.copy(), terminal_idxs, step, width)
+        # resampled_out_states = new_states
+        
         in_values = [state.value for state in states]
-        out_values = [state.value for state in new_states]
+        out_values = [state.value for state in resampled_out_states]
+
+        if len(out_values) == 0:
+            out_values = [0] * width
 
         in_avg = sum(in_values) / len(in_values)
         out_avg = sum(out_values) / len(out_values)
 
         if in_avg < out_avg:
-            new_w = max(self.width//2, width - 1)
+            new_w = max(self.width - self.width//2, width - 1)
         else:
             new_w = min(self.width + self.width//2, width + 1)
         
@@ -428,6 +458,65 @@ class AlgorithmNewAlgo(Algorithm):
         return w[rating]
 
 
+
+    '''
+    SKEWED STATE DETECTION
+    '''
+
+    def filter_states(self, input_state, states, new_states, visited_states, terminal_idxs):
+        if not self.features['skewed_state_detection']:
+            return new_states, visited_states
+
+        freq_in_states = {}
+        skewed_states = []
+
+        for i in range(len(states)):
+            state = states[i]
+            cs = state.current_state
+
+            if cs == input_state.current_state:
+                continue
+
+            if cs not in freq_in_states:
+                freq_in_states[cs] = []
+            
+            freq_in_states[cs].append(i)
+
+        for idxs in freq_in_states.values():
+            if len(idxs) <= 1: # TODO: Change this threshold
+                continue
+
+            # check if skewed state and filter if it is
+            parent_values = [states[i].value for i in idxs]
+            avg_parent_value = sum(parent_values) / len(parent_values)
+            children = [new_states[i] for i in idxs]
+            # if all([child.value <= (avg_parent_value-10) for child in children]):
+            if all([child.value <= (avg_parent_value/2) for child in children]):
+                # mark as skewed state
+                skewed_states.append(states[idxs[0]].current_state)
+                skewed_states.extend([child.current_state for child in children])
+        
+
+        # remove the skewed states from visited states and new states
+        updated_vis_states = []
+        updated_new_states = []
+        for idf, s_val, s in visited_states:
+            if s.current_state in skewed_states:
+                continue
+            updated_vis_states.append((idf, s_val, s))
+        
+        for s in new_states:
+            if s.current_state in skewed_states:
+                continue
+            updated_new_states.append(s)
+        
+        # TODO: REMOVE (Debug purposes)
+        if len(set(skewed_states)) > 0:
+            print(f'Removed {len(set(skewed_states))} skewed states!')
+
+        return updated_new_states, updated_vis_states
+
+
     '''
     SOLVEEEEE
     '''
@@ -439,6 +528,7 @@ class AlgorithmNewAlgo(Algorithm):
 
         # set the value of inital state
         state = replace(state, value=self.origin*self.backtrack*self.backtrack)
+        input_state = state.clone()
 
         # log the puzzle to stdout
         print('initial problem state:')
@@ -461,7 +551,7 @@ class AlgorithmNewAlgo(Algorithm):
             self.step_agents[i]['agent'] = self._wrap_agent(agent_class)
 
         # log init stuff
-        self._log_init(idx, step, states)
+        self._log_init(idx, width)
 
         solved = False
         terminal_states = []
@@ -477,7 +567,7 @@ class AlgorithmNewAlgo(Algorithm):
             self._log_step(idx, step, states, new_states, agents_used, terminal_idxs, solved_idxs)
 
             # runtime updates for width
-            width = self.update_width(states, new_states, width)
+            width = self.update_width(states, new_states, visited_states, resampler, terminal_idxs, step)
             # learn the priors
             self.update_priors(agents_used, states, new_states)
 
@@ -494,27 +584,13 @@ class AlgorithmNewAlgo(Algorithm):
             # append to terminal states list
             terminal_states.extend([new_states[i] for i in terminal_idxs])
 
-            # Filter previously visited states records
-            remaining_steps = self.num_steps - (step + 1)
-            visited_states = [(identifier, value*self.backtrack, state) for identifier, value, state in visited_states]
-            visited_states = [state for state in visited_states if  remaining_steps >= self.min_steps - len(state[2].steps)]
+            # Skewed State Detection
+            new_states, visited_states = self.filter_states(input_state, states, new_states, visited_states, terminal_idxs)
 
-            # replace the terminal states with old ones
-            if visited_states != []:
-                replacements, _ = resampler.resample(visited_states.copy(), len(terminal_idxs), self.resampling)
-            else:
-                replacements, _ = resampler.resample([("", state.value, state) for state in states], len(terminal_idxs), resampling_method="linear")
-            states = [replacements.pop(0) if i in terminal_idxs else state for i, state in enumerate(new_states)]
-
-            # resampling
-            for i in range(len(new_states)):
-                if i not in terminal_idxs:
-                    visited_states.append((f"{i}.{step}", states[i].value, states[i]))
-            states, _ = resampler.resample(visited_states, width, self.resampling)
+            # Resample new states
+            states, visited_states = self.resample_states(resampler, states, new_states, visited_states, terminal_idxs, step, width)
 
             if len(states) == 0:
-                print(f"Failed cuz no states left to resample!")
-                print(len(visited_states))
                 break
 
         return new_states
@@ -538,4 +614,3 @@ class AlgorithmNewAlgo(Algorithm):
         print(self.priors) # Debug purposes
 
         return results
-

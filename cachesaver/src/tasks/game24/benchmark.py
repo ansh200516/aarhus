@@ -13,8 +13,8 @@ class BenchmarkGame24(Benchmark):
 
         if  split == "single":
             self.data = data[:1]
-        elif split == "two":
-            self.data = data[:2]
+        elif split == "pico":
+            self.data = data[:5]
         elif split == "mini":
             self.data = data[:25]
         elif split == "mid":
